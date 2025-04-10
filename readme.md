@@ -159,6 +159,7 @@ To get more sensibility in the detection of distant clusters (with similar gene 
 ## Required software
 - HMMER
 - blastp
+- mafft
 
 # Files
 * install.py (install script)
