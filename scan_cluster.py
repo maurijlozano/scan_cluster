@@ -61,7 +61,7 @@ def parseArgs():
 	searchOpt = parser.add_argument_group('Blast and HMMSearch options')
 	searchOpt.add_argument("--local_blast_db",help="A local blastp database generated with makeblastdb program... <Folder name>", dest="local_blast_db", action='store', default='')
 	searchOpt.add_argument("--Generate_local_db",help="A local blastp database will be generated from the proteome of all the analyzed subject sequences...", dest="local_blast_db_subject", action='store_true')
-	searchOpt.add_argument("--Blast_DB",help="Database for remote blastp, used to retrieve homologs for HMM generation. Default=nr Available: nr, refseq_select, refseq_protein, landmark, swissprot, pataa, pdb, env_nr, tsa_nr", dest="blastp_database", action='store', default='refseq_select_prot')
+	searchOpt.add_argument("--Blast_DB",help="Database for remote blastp, used to retrieve homologs for HMM generation. Default=refseq_select_prot. Available: nr, refseq_select, refseq_protein, landmark, swissprot, pataa, pdb, env_nr, tsa_nr", dest="blastp_database", action='store', default='refseq_select_prot')
 	#
 	searchOpt.add_argument("--Blast_evalue",help="E-value cut-off for remote blastp, used to retrieve homologs for HMM generation.", dest="evalue", action='store', default=0.00001)
 	searchOpt.add_argument("--Blast_max_targets",help="Maxímum number of targets for Blastp search. Default=250", dest="max_target", action='store', default=250)
