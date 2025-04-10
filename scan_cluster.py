@@ -3,7 +3,7 @@
 NAME = "Scan cluster"
 VERSION = "1.0"
 REF = "\n   Not published"
-GITHUB="https://github.com/maurijlozano"
+GITHUB="https://github.com/maurijlozano/scan_cluster"
 BLAST_DBS = ['nr', 'refseq_select_prot', 'refseq_protein', 'SMARTBLAST/landmark', 'swissprot', 'pataa', 'pdb', 'env_nr', 'tsa_nr', 'nr_cluster_seq']
 
 #Imports
