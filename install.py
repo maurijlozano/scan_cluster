@@ -28,6 +28,13 @@ if not is_insatalled('hmmsearch'):
 else:
     print(f'HMMER is installed: {which("hmmsearch")}')
 
+if not is_insatalled('mafft'):
+    install_mafft = input('Do you want to install mafft? [Yes/No]')
+    if (install_mafft.upper == 'YES') or (install_mafft.upper == 'Y'): 
+        os.system('sudo apt install mafft')
+else:
+    print(f'mafft is installed: {which("mafft")}')
+
 if os.path.exists('scan_cluster.py'):
     os.system('chmod +x scan_cluster.py')
     print(f'\n\nTesting scan_cluster')
