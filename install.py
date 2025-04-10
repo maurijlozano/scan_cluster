@@ -3,15 +3,19 @@ print('Installing the requirements for Scan cluster...')
 import os,sys
 from sys import platform
 from shutil import which
+import subprocess
 
 os.system('pip install -r requirements.txt')
 
-if (platform != "linux") or (platform != "linux2"):
+if not platform.startswith("linux"):
     print('This program only works in linux systems...\nFor windows or Mac OS you will have to manually install Blast and HMMER.')
 
 def is_insatalled(program):
     """Check whether `program` is on PATH and marked as executable."""
-    return (which(program) != None)
+    if len(subprocess.Popen(f"{program} -h", shell=True, stdout=subprocess.PIPE).stdout.read()) > 0:
+        return (True)
+    else:
+        return(False)
 
 if not is_insatalled('blastp'):
     install_blast = input('Do you want to install NCBI Blast? [Yes/No]')
