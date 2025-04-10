@@ -12,10 +12,7 @@ if not platform.startswith("linux"):
 
 def is_insatalled(program):
     """Check whether `program` is on PATH and marked as executable."""
-    if len(subprocess.Popen(f"{program} -h", shell=True, stdout=subprocess.PIPE).stdout.read()) > 0:
-        return (True)
-    else:
-        return(False)
+    return (which(program) != None)
 
 if not is_insatalled('blastp'):
     install_blast = input('Do you want to install NCBI Blast? [Yes/No]')
