@@ -138,7 +138,7 @@ To get more sensibility in the detection of distant clusters (with similar gene 
 ```
 ### 2. Extract cluster from genbank file and search using local blast to build HMM
 ```
-./scan_cluster -Q <query genome gb> -R <Replicon ID as in the gb file> -s <int: start coordinate> -e <int: end coordinate> -F <Folder: folder with all the genomes to use as subject> -o <Folder: output folder>
+./scan_cluster -Q <query genome gb> -R <Replicon ID as in the gb file> -s <int: start coordinate> -e <int: end coordinate> -F <Folder: folder with all the genomes to use as subject> -o <Folder: output folder> --Generate_local_db
 ```
 
 ### 3. Search for clusters using HMMs provided by the user
