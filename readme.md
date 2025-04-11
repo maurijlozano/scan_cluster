@@ -2,8 +2,11 @@
 
 :point_right: Run in Google Colab: [Scan cluster Colab](https://colab.research.google.com/drive/1-2OuKDcItqsDPRNqb1KkT2YLgDX_70Mv?usp=sharing)
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15195352.svg)](https://doi.org/10.5281/zenodo.15195352)
+
+
 # Methods
-Scan Clusters is a program to look for homologous clusters in bacterial (but could also work on eukaryotes and viruses) genomes. If only a query cluster is provided the program will build HMMs for each gen in the cluster and then it will use hmmsearch to find the homologous genes in all the subject genomes. Homologous protein searches can be done in remote or local mode. For the remote mode, Scan_cluster will try to run blastp _-remote_ searches to retrieve homologous proteins. Then from the filtered blast results it will make the HMMs. In local mode, it will use a provided blast database or make a local Blast database from all the genomes to be analyzed, and run local blastp searches. From these searches the HMMs will be constructed. Alternatively, scan_cluster can search for clusters containing a predefined set of HMM. Finally, it can search for homologous of the proteins in the query cluster using blastp instead of hmmsearch.
+Scan Cluster is a program to look for homologous clusters in bacterial (but could also work on eukaryotes and viruses) genomes. If only a query cluster is provided the program will build HMMs for each gen in the cluster and then it will use hmmsearch to find the homologous genes in all the subject genomes. Homologous protein searches can be done in remote or local mode. For the remote mode, Scan_cluster will try to run blastp _-remote_ searches to retrieve homologous proteins. Then from the filtered blast results it will make the HMMs. In local mode, it will use a provided blast database or make a local Blast database from all the genomes to be analyzed, and run local blastp searches. From these searches the HMMs will be constructed. Alternatively, scan_cluster can search for clusters containing a predefined set of HMM. Finally, it can search for homologous of the proteins in the query cluster using blastp instead of hmmsearch.
 
 A cluster is then defined if there are multiple query protein hits in the same region of the target genome. 
 The following criteria is used for cluster definition:
