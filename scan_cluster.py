@@ -3,7 +3,7 @@
 NAME = "Scan cluster"
 VERSION = "1.0"
 REF = "\n   Not published"
-GITHUB="https://github.com/maurijlozano/scan_cluster"
+GITHUB="https://github.com/maurijlozano"
 BLAST_DBS = ['nr', 'refseq_select_prot', 'refseq_protein', 'SMARTBLAST/landmark', 'swissprot', 'pataa', 'pdb', 'env_nr', 'tsa_nr', 'nr_cluster_seq']
 
 #Imports
@@ -61,7 +61,7 @@ def parseArgs():
 	searchOpt = parser.add_argument_group('Blast and HMMSearch options')
 	searchOpt.add_argument("--local_blast_db",help="A local blastp database generated with makeblastdb program... <Folder name>", dest="local_blast_db", action='store', default='')
 	searchOpt.add_argument("--Generate_local_db",help="A local blastp database will be generated from the proteome of all the analyzed subject sequences...", dest="local_blast_db_subject", action='store_true')
-	searchOpt.add_argument("--Blast_DB",help="Database for remote blastp, used to retrieve homologs for HMM generation. Default=refseq_select_prot. Available: nr, refseq_select, refseq_protein, landmark, swissprot, pataa, pdb, env_nr, tsa_nr", dest="blastp_database", action='store', default='refseq_select_prot')
+	searchOpt.add_argument("--Blast_DB",help="Database for remote blastp, used to retrieve homologs for HMM generation. Default=nr Available: nr, refseq_select, refseq_protein, landmark, swissprot, pataa, pdb, env_nr, tsa_nr", dest="blastp_database", action='store', default='refseq_select_prot')
 	#
 	searchOpt.add_argument("--Blast_evalue",help="E-value cut-off for remote blastp, used to retrieve homologs for HMM generation.", dest="evalue", action='store', default=0.00001)
 	searchOpt.add_argument("--Blast_max_targets",help="Maxímum number of targets for Blastp search. Default=250", dest="max_target", action='store', default=250)
@@ -93,6 +93,21 @@ def write_to_log(log_file,message):
 		log.write(f'{message}\n')
 	pass
 
+def AnnotatedGenome(genbankFile):
+	features = 0
+	for record in SeqIO.parse(genbankFile, "genbank"):
+		if record.features:
+			if len(record.features) <= 5:
+				features += 0
+			else:
+				features += len(record.features)
+	if features == 0:
+		write_to_log(log_file,f'Error: {genbankFile} is not annotated. Please provide a Genbank file with annotations.')
+		print(f'Error: {genbankFile} is not annotated. Please provide a Genbank file with annotations.')
+		return(False)
+	else:
+		return(True)
+			
 #Genbankfile to dict
 def genbankToDict(genbankFile):
 	genbankDict = {}
@@ -847,6 +862,12 @@ def generate_file_for_itol(tree,res_folder):
 			f.write(f'\n')
 	pass
 
+def printClusters(reoriented_cluster_dict,clusterFile):
+	with open(clusterFile,'w') as cf:
+		for k,v in reoriented_cluster_dict.items():
+			clusterText = " ".join( [ list(g)[0] for g in v]  )
+			cf.write(f'{k}\t{clusterText}\n')
+
 
 #######################################################################
 #######################################################################
@@ -1106,29 +1127,35 @@ if __name__ == "__main__":
 		else:
 			max_alien_prots = int(nprot*3)
 		#search for clusters
+		if len(sgenbankFiles) == 1:
+			print(f'Please use Only Blast method to run with a single genome...')
 		for sgenbankFile in sgenbankFiles:
 			print(f'\n-> Processing {sgenbankFile} ...')
-			validated_clusters,validated_clusters_UIDS,sgenbankDict, description,proteomeFile,protHits = scan_cluster_HMMER(HMMs, nprot, prots_between,max_alien_prots, sgenbankFile, res_folder, min_target_prots,min_cluster_coverage,hmm_evalue)
-			if len(validated_clusters) == 0:
-				print(f'--> No clusters found on {sgenbankFile}...')
+			if AnnotatedGenome(sgenbankFile):
+				validated_clusters,validated_clusters_UIDS,sgenbankDict, description,proteomeFile,protHits = scan_cluster_HMMER(HMMs, nprot, prots_between,max_alien_prots, sgenbankFile, res_folder, min_target_prots,min_cluster_coverage,hmm_evalue)
+				if len(validated_clusters) == 0:
+					print(f'--> No clusters found on {sgenbankFile}...')
+					continue
+				#get coordinates of genomic region to extract from genbank file --> for clinker
+				region_file_path = extract_gb_region_for_clinker(sgenbankFile, sgenbankDict, validated_clusters_UIDS, gb_regions_for_clinker)
+				#
+				protHits.loc[:,'cluster_file'] = [ region_file_path[row['cluster']] for _,row in protHits.iterrows()]
+				#protHits, use HMM acc as measure of prediction quality
+				protHits = protHits.rename(columns={'acc': "id_score", "hmm cover": "qcover"}, errors="raise")
+				columns_to_concat = ['query name','target name', 'id_score','qcover','cluster','cluster_file']
+				protHits_subset = protHits.loc[:, columns_to_concat]
+				# Identify rows where all values in the selected columns are NaN or empty
+				rows_to_exclude = protHits_subset.isna().all(axis=1) | (protHits_subset == '').all(axis=1)
+				# Filter protHits to exclude these rows
+				protHits_filtered = protHits_subset[~rows_to_exclude]
+				# Now concatenate with the filtered DataFrame
+				if (not len(protHits_filtered) == 0) and (not len(hit_table) == 0):
+					hit_table = pd.concat([hit_table, protHits_filtered])
+				elif (len(hit_table) == 0) and (not len(protHits_filtered) == 0):
+					hit_table = protHits_filtered
+			else:
+				print(f'--> {sgenbankFile} is not annotated....')
 				continue
-			#get coordinates of genomic region to extract from genbank file --> for clinker
-			region_file_path = extract_gb_region_for_clinker(sgenbankFile, sgenbankDict, validated_clusters_UIDS, gb_regions_for_clinker)
-			#
-			protHits.loc[:,'cluster_file'] = [ region_file_path[row['cluster']] for _,row in protHits.iterrows()]
-			#protHits, use HMM acc as measure of prediction quality
-			protHits = protHits.rename(columns={'acc': "id_score", "hmm cover": "qcover"}, errors="raise")
-			columns_to_concat = ['query name','target name', 'id_score','qcover','cluster','cluster_file']
-			protHits_subset = protHits.loc[:, columns_to_concat]
-			# Identify rows where all values in the selected columns are NaN or empty
-			rows_to_exclude = protHits_subset.isna().all(axis=1) | (protHits_subset == '').all(axis=1)
-			# Filter protHits to exclude these rows
-			protHits_filtered = protHits_subset[~rows_to_exclude]
-			# Now concatenate with the filtered DataFrame
-			if (not len(protHits_filtered) == 0) and (not len(hit_table) == 0):
-				hit_table = pd.concat([hit_table, protHits_filtered])
-			elif (len(hit_table) == 0) and (not len(protHits_filtered) == 0):
-				hit_table = protHits_filtered
 	else:
 		cluster_faa_file = extract_cluster(genbankFile,replicon_id,cstart,cend,res_folder)
 		nprot = len([1 for i in SeqIO.parse(cluster_faa_file,'fasta')])
@@ -1207,46 +1234,53 @@ if __name__ == "__main__":
 	#reverse? cluster_dict has '' if gene not found in the query sequence
 	cluster_dict_keys = list(reoriented_cluster_dict.keys())
 	pretty_cluster_dict_keys = [os.path.basename(os.path.splitext(k)[0]) for k in cluster_dict_keys]
-	#Generating distance cluster matrix!
-	print('\nGenerating cluster distance tree...')
-	print('> Generating distance cluster matrix...')
-	idsMAT = {}
-	dmatrix = []
-	aln_matrix = {}
-	#max score for normalization == 100
-	for i in range(len(cluster_dict_keys)):
-		matrixline = []
-		for j in range(0,i+1):
-			cluster_i = reoriented_cluster_dict[cluster_dict_keys[i]]
-			cluster_j = reoriented_cluster_dict[cluster_dict_keys[j]]
-			score, aln_cluster_i, aln_cluster_j = compareByDP(cluster_i,cluster_j,id_dict,gap,mismatch)
-			dist = 1 - score/100
-			#pretty_id_tags
-			idsMAT[i,j] = pretty_cluster_dict_keys[i],pretty_cluster_dict_keys[j]
-			aln_matrix[i,j] = aln_cluster_i, aln_cluster_j
-			matrixline.append(dist)
-		dmatrix.append(matrixline)
-	##
-	#hacer...
-	print("> Constructing upgma tree...")
-	write_to_log(log_file, 'Constructing upgma tree...')
-	dm = TreeConstruction.DistanceMatrix(names=pretty_cluster_dict_keys, matrix= dmatrix )
-	constructor = TreeConstruction.DistanceTreeConstructor()
-	tree = constructor.upgma(dm)
-	#tree = constructor.nj(dm) #for 3 sequences gives unresolved tree
-	treeFile = os.path.join(res_folder,"tree.nhx")
-	print(f'-> The tree file is located in: {treeFile}')
-	write_to_log(log_file, f'The tree file is located in: {treeFile}')
-	Phylo.write(tree, treeFile, "nexus")
 	#
-	print(f'\n> Generating Multiple cluster alignment with global Dynamic programming')
-	tree = put_clusters_in_tree_leaves(tree,reoriented_cluster_dict)
-	tree2 = cluster_progressive_alignment(tree, id_dict,gap,mismatch)
-	m_cluster_alignment = tree2.clusters
-	m_cluster_alignment_names = tree2.names
-	put_alignment_in_tree(tree,m_cluster_alignment,m_cluster_alignment_names)
-	print(f'> Generating Multiple cluster alignment ITOL annotation for the cluster distance tree: {os.path.join(res_folder,"iTOLData.txt")}')
-	#	
-	generate_file_for_itol(tree,res_folder)
-	write_to_log(log_file, f'Generating Multiple cluster alignment ITOL annotation for the cluster distance tree: {os.path.join(res_folder,"iTOLData.txt")}')
+	clusterFile = os.path.join(res_folder,'clusters.txt')
+	printClusters(reoriented_cluster_dict,clusterFile)
+	#
+	if len(reoriented_cluster_dict) > 1:
+		#Generating distance cluster matrix!
+		print('\nGenerating cluster distance tree...')
+		print('> Generating distance cluster matrix...')
+		idsMAT = {}
+		dmatrix = []
+		aln_matrix = {}
+		#max score for normalization == 100
+		for i in range(len(cluster_dict_keys)):
+			matrixline = []
+			for j in range(0,i+1):
+				cluster_i = reoriented_cluster_dict[cluster_dict_keys[i]]
+				cluster_j = reoriented_cluster_dict[cluster_dict_keys[j]]
+				score, aln_cluster_i, aln_cluster_j = compareByDP(cluster_i,cluster_j,id_dict,gap,mismatch)
+				dist = 1 - score/100
+				#pretty_id_tags
+				idsMAT[i,j] = pretty_cluster_dict_keys[i],pretty_cluster_dict_keys[j]
+				aln_matrix[i,j] = aln_cluster_i, aln_cluster_j
+				matrixline.append(dist)
+			dmatrix.append(matrixline)
+		##
+		#hacer...
+		print("> Constructing upgma tree...")
+		write_to_log(log_file, 'Constructing upgma tree...')
+		dm = TreeConstruction.DistanceMatrix(names=pretty_cluster_dict_keys, matrix= dmatrix )
+		constructor = TreeConstruction.DistanceTreeConstructor()
+		tree = constructor.upgma(dm)
+		#tree = constructor.nj(dm) #for 3 sequences gives unresolved tree
+		treeFile = os.path.join(res_folder,"tree.nhx")
+		print(f'-> The tree file is located in: {treeFile}')
+		write_to_log(log_file, f'The tree file is located in: {treeFile}')
+		Phylo.write(tree, treeFile, "nexus")
+		#
+		print(f'\n> Generating Multiple cluster alignment with global Dynamic programming')
+		tree = put_clusters_in_tree_leaves(tree,reoriented_cluster_dict)
+		tree2 = cluster_progressive_alignment(tree, id_dict,gap,mismatch)
+		m_cluster_alignment = tree2.clusters
+		m_cluster_alignment_names = tree2.names
+		put_alignment_in_tree(tree,m_cluster_alignment,m_cluster_alignment_names)
+		print(f'> Generating Multiple cluster alignment ITOL annotation for the cluster distance tree: {os.path.join(res_folder,"iTOLData.txt")}')
+		#	
+		generate_file_for_itol(tree,res_folder)
+		write_to_log(log_file, f'Generating Multiple cluster alignment ITOL annotation for the cluster distance tree: {os.path.join(res_folder,"iTOLData.txt")}')
+	else:
+		print(f'Only one cluster was found... No tree will be generated...')
 	print(f'\nAnalysis done! Please find your results on the {res_folder} folder...\nThank you for using {NAME}!\n\n')
