@@ -61,7 +61,7 @@ def parseArgs():
 	searchOpt = parser.add_argument_group('Blast and HMMSearch options')
 	searchOpt.add_argument("--local_blast_db",help="A local blastp database generated with makeblastdb program... <Folder name>", dest="local_blast_db", action='store', default='')
 	searchOpt.add_argument("--Generate_local_db",help="A local blastp database will be generated from the proteome of all the analyzed subject sequences...", dest="local_blast_db_subject", action='store_true')
-	searchOpt.add_argument("--Blast_DB",help="Database for remote blastp, used to retrieve homologs for HMM generation. Default=nr Available: nr, refseq_select, refseq_protein, landmark, swissprot, pataa, pdb, env_nr, tsa_nr", dest="blastp_database", action='store', default='refseq_select_prot')
+	searchOpt.add_argument("--Blast_DB",help="Database for remote blastp, used to retrieve homologs for HMM generation. Default = refseq_protein. Available: nr, refseq_select, refseq_protein, landmark, swissprot, pataa, pdb, env_nr, tsa_nr", dest="blastp_database", action='store', default='refseq_protein')
 	#
 	searchOpt.add_argument("--Blast_evalue",help="E-value cut-off for remote blastp, used to retrieve homologs for HMM generation.", dest="evalue", action='store', default=0.00001)
 	searchOpt.add_argument("--Blast_max_targets",help="Maxímum number of targets for Blastp search. Default=250", dest="max_target", action='store', default=250)
@@ -270,8 +270,9 @@ def generate_HMM(query_cluster_faa,evalue,blastp_database,qcov,scov,res_folder,l
 			print(message)
 		#Check blast results
 		if os.path.getsize(blast_out) == 0:
-			write_to_log(log_file,'Error: Remote Blast produced an error... Please try again or run in blast mode without HMM generation...')
-			print('Error: Remote Blast produced an error... Please try again or run in blast mode without HMM generation...')
+			write_to_log(log_file,'Error: No homologs were found in the local/remote {local_blast_db} database... Please try again or run in blast mode without HMM generation...')
+			print(f'Error: No homologs were found for {protein.id} in the local/remote {local_blast_db} database... Please try again or run in blast mode without HMM generation...')
+			continue
 		#read blast resutls
 		blast_fields = ['qseqid', 'sseqid', 'pident', 'length', 'qstart', 'qend', 'qlen', 'sstart', 'send', 'slen', 'evalue', 'bitscore', 'sseq']
 		blast_tabl = pd.read_table(blast_out, names = blast_fields)
@@ -310,7 +311,10 @@ def generate_HMM(query_cluster_faa,evalue,blastp_database,qcov,scov,res_folder,l
 		os.remove(temp_file)
 	if os.path.exists(blast_out):
 		os.remove(blast_out)
-	return(HMMs)
+	if len(HMMs) > 0:
+		return(HMMs)
+	else:
+		sys.exit(f'No homologs found, could not create the HMMs. Try running in blast only mode.')
 
 #finds by composition, consecutive genes, but not synteny or orientation of the genes
 def find_clusters(protHits,nprot,prots_between,max_alien_prots,min_target_prots,min_cluster_coverage):
@@ -414,19 +418,21 @@ def scan_cluster_Blastp(cluster_faa_file, nprot, prots_between,max_alien_prots, 
 	print(f'> Running blastp to retrieve homologs for cluster identification ({sgenbankFile}).')
 	os.system(blast_command)
 	if os.path.getsize(blast_out) == 0:
-			write_to_log(log_file,'Error: Blast error, 0 bits result file...')
-			print('Error: Blast error, 0 bits result file...')
-	#read blast resutls
-	blast_fields = ['query name', 'target name', 'pident', 'length', 'qstart', 'qend', 'qlen', 'sstart', 'send', 'slen', 'evalue', 'bitscore', 'sseq']
-	blast_tabl = pd.read_table(blast_out, names = blast_fields)
-	blast_tabl['qcov'] = [ (row['qend']-row['qstart'])/row['qlen'] for _,row in blast_tabl.iterrows()]
-	blast_tabl['scov'] = [ (row['send']-row['sstart'])/row['slen'] for _,row in blast_tabl.iterrows()]
-	blast_tabl = blast_tabl[(blast_tabl['qcov'] >= qcov ) & (blast_tabl['scov'] >= scov )]
-	#read blast results for each protein
-	blast_tabl.sort_values(['evalue'])
-	#validate clusters
-	validated_clusters,validated_clusters_UIDS,blast_tabl = find_clusters(blast_tabl,nprot,prots_between,max_alien_prots,min_target_prots,min_cluster_coverage)
-	return(validated_clusters,validated_clusters_UIDS,sgenbankDict, description,proteomeFile,blast_tabl)
+		write_to_log(log_file,'Error: Blast error, 0 bits result file...')
+		print('Error: Blast error, 0 bits result file...')
+		return('','','','','','')
+	else:
+		#read blast resutls
+		blast_fields = ['query name', 'target name', 'pident', 'length', 'qstart', 'qend', 'qlen', 'sstart', 'send', 'slen', 'evalue', 'bitscore', 'sseq']
+		blast_tabl = pd.read_table(blast_out, names = blast_fields)
+		blast_tabl['qcov'] = [ (row['qend']-row['qstart'])/row['qlen'] for _,row in blast_tabl.iterrows()]
+		blast_tabl['scov'] = [ (row['send']-row['sstart'])/row['slen'] for _,row in blast_tabl.iterrows()]
+		blast_tabl = blast_tabl[(blast_tabl['qcov'] >= qcov ) & (blast_tabl['scov'] >= scov )]
+		#read blast results for each protein
+		blast_tabl.sort_values(['evalue'])
+		#validate clusters
+		validated_clusters,validated_clusters_UIDS,blast_tabl = find_clusters(blast_tabl,nprot,prots_between,max_alien_prots,min_target_prots,min_cluster_coverage)
+		return(validated_clusters,validated_clusters_UIDS,sgenbankDict, description,proteomeFile,blast_tabl)
 
 def extract_gb_region_for_clinker(sgenbankFile, sgenbankDict, validated_clusters_UIDS, gb_regions_for_clinker):
 	sgenbankFile_basename = os.path.splitext(os.path.basename(sgenbankFile))[0]
@@ -438,6 +444,8 @@ def extract_gb_region_for_clinker(sgenbankFile, sgenbankDict, validated_clusters
 			if cluster[0] in sgenbankDict[k].keys():
 				cluster_replicon = k
 				start_coord = min([sgenbankDict[k][uid][3] for uid in cluster])-50
+				if start_coord < 0:
+					start_coord = 0
 				end_coord = max([sgenbankDict[k][uid][4] for uid in cluster])+50
 				break
 		if (start_coord == '') or (end_coord == ''):
@@ -1181,7 +1189,10 @@ if __name__ == "__main__":
 			#blast_tabl use pident as measure of
 			blast_tabl.loc[:,'cluster_file'] = [ region_file_path[row['cluster']] for _,row in blast_tabl.iterrows()] 
 			blast_tabl = blast_tabl.rename(columns={'pident': "id_score", "qcov": "qcover"}, errors="raise")
-			hit_table = pd.concat([hit_table, blast_tabl.loc[:,['query name','target name', 'id_score','qcover','cluster','cluster_file']]])
+			if (len(hit_table) == 0) and (len(blast_tabl) > 0):
+				hit_table = blast_tabl.loc[:,['query name','target name', 'id_score','qcover','cluster','cluster_file']]
+			elif (not len(hit_table) == 0) and (len(blast_tabl) > 0):
+				hit_table = pd.concat([hit_table, blast_tabl.loc[:,['query name','target name', 'id_score','qcover','cluster','cluster_file']]])
 	#
 	################################################################
 	################################################################
@@ -1189,9 +1200,11 @@ if __name__ == "__main__":
 	######
 	print('\n\nAnalyzing clusters...')
 	write_to_log(log_file, 'Analyzing clusters...')
+	if len(hit_table) == 0:
+		sys.exit('No homologs were found.')
 	hit_table.loc[:,'locus tag'] = [ row['target name'].split('|')[2] for _,row in hit_table.iterrows() ]
 	hit_table.loc[:,'replicon_locus_tag'] = [ f"{row['target name'].split('|')[0]}|{row['target name'].split('|')[2]}" for _,row in hit_table.iterrows() ]
-	hit_table = hit_table.reset_index(drop=True)	
+	hit_table = hit_table.reset_index(drop=True)
 	region_files = glob.glob(os.path.join(gb_regions_for_clinker,'*.gb'))
 	#here regions for clinker are read and compared based on the query proteins/cluster. The order and orientation of the genes are taken in account
 	#function that returns the structure of the operon with the gene orientations
