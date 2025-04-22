@@ -173,6 +173,8 @@ To get more sensibility in the detection of distant clusters (with similar gene 
 * algorithm.png
 * get_best_hit_table.py
 * download_gb_from_tsv.py
+* renameTree.py
+* getGenome_table.py
 * readme.md: this file
 
 # Required third party python libraries
@@ -185,5 +187,9 @@ Read the blast or HMMsearch results to search for the best hits for every gene i
 ## download_gb_from_tsv.py
 This scripts downloads the genomes by NCBI assembly accession number using NCBI's datasets.
 Requires datasets and unzip programs.
+## getGenome_table.py
+uses the genbank files to generate a Genome tables ready for publication with information of the genomes used in the analysis.
+## renameTree.py
+Renames the generated tree with the Genus species strain information extracted from the genbank file
 
 
