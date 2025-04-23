@@ -1251,6 +1251,8 @@ if __name__ == "__main__":
 	clusterFile = os.path.join(res_folder,'clusters.txt')
 	printClusters(reoriented_cluster_dict,clusterFile)
 	#
+	if len(reoriented_cluster_dict) > 200:
+		sys.setrecursionlimit(len(reoriented_cluster_dict)*100)
 	if len(reoriented_cluster_dict) > 1:
 		#Generating distance cluster matrix!
 		print('\nGenerating cluster distance tree...')
