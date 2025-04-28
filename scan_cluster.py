@@ -69,7 +69,8 @@ def parseArgs():
 	searchOpt.add_argument("--Blast_scov",help="Subject coverage percent for Blastp search. Default=45", dest="scov", action='store', default=45)
 	searchOpt.add_argument("--hmm_evalue",help="E-value cut-off for hmmsearch. Default = 0.00001", dest="hmm_evalue", action='store', default=0.00001)
 	searchOpt.add_argument("--hmm_cover",help="HMM coverage cut-off for hmmsearch. Default = 45", dest="hmm_cover", action='store', default=45)	
-	
+	searchOpt.add_argument("--ali_cover",help="Alignment coverage cut-off for hmmsearch. Default = 45", dest="ali_cover", action='store', default=45)
+	#
 	args = parser.parse_args()
 	return args
 
@@ -163,14 +164,27 @@ def hmmsearchProtein(proteomeFile,hmm_file,sres_folder,hmm_evalue):
 	resFile = os.path.join(sres_folder,"hmmsearch.txt")
 	subprocess.call(['hmmsearch', "--domtblout", resFile , hmm_file , proteomeFile], stdout=subprocess.DEVNULL)
 	tableHeaders = ['target name', 'taccession', 'tlen', 'query name', 'qaccession', 'qlen', 'E-value', 'score', 'bias', '#', 'of', 'c-Evalue', 'i-Evalue', 'dom score', 'dom  bias', 'hmm from', 'hmm to', 'ali from', 'ali to', 'env from', 'env to', 'acc', 'description of target']
-	hmmHits = pd.read_table(resFile, names=tableHeaders, comment='#', sep='\\s+').sort_values(["target name","E-value"])
-	hmmHits = hmmHits.sort_values("E-value")
-	hmmHitsPerGene = hmmHits.groupby(['target name'], as_index=False, ).first().sort_values("E-value")
-	hmmHitsPerGene = hmmHitsPerGene[hmmHitsPerGene['E-value'] < hmm_evalue]
-	hmmHitsPerGene['hmm cover'] = [(row['hmm to']-row['hmm from'])/row['qlen'] for _,row in hmmHitsPerGene.iterrows()]
-	hmmHitsPerGene = hmmHitsPerGene[hmmHitsPerGene['hmm cover'] >= hmm_cover]
-	hmmHitsPerGene = hmmHitsPerGene.reset_index(drop=True)
-	return(hmmHitsPerGene)
+	try:
+		hmmHits = pd.read_fwf(resFile, comment='#', sep='\\s+', header=None)
+	except:
+		print(f'---> No homologs found. Empty hmmsearch.txt file...')
+		return(pd.DataFrame(columns = tableHeaders))
+	if len(hmmHits) > 0:
+		renameDict = { old:new for old,new in zip(hmmHits.columns[0:len(tableHeaders)],tableHeaders)}
+		hmmHits = hmmHits.rename(columns=renameDict)
+		#old vers
+		#hmmHits = pd.read_table(resFile, names=tableHeaders, comment='#', sep='\\s+').sort_values(["target name","E-value"])
+		hmmHits = hmmHits.sort_values("E-value")
+		hmmHitsPerGene = hmmHits.groupby(['target name'], as_index=False, ).first().sort_values("E-value")
+		hmmHitsPerGene = hmmHitsPerGene[hmmHitsPerGene['E-value'] < hmm_evalue]
+		hmmHitsPerGene['hmm cover'] = [(row['hmm to']-row['hmm from'])/row['qlen'] for _,row in hmmHitsPerGene.iterrows()]
+		hmmHitsPerGene['ali cover'] = [(row['ali to']-row['ali from'])/row['tlen'] for _,row in hmmHitsPerGene.iterrows()]
+		hmmHitsPerGene = hmmHitsPerGene[hmmHitsPerGene['hmm cover'] >= hmm_cover]
+		hmmHitsPerGene = hmmHitsPerGene[hmmHitsPerGene['ali cover'] >= ali_cover]
+		hmmHitsPerGene = hmmHitsPerGene.reset_index(drop=True)
+		return(hmmHitsPerGene)
+	else:
+		return(pd.DataFrame(columns = tableHeaders))
 
 #gets the clusters with gene orientation and score
 def get_oriented_cluster_with_score(region_file, hit_table,proteins):
@@ -1053,6 +1067,7 @@ if __name__ == "__main__":
 	#hmmsearch arguments
 	hmm_evalue = float(args.hmm_evalue)
 	hmm_cover = int(args.hmm_cover)/100
+	ali_cover = int(args.ali_cover)/100
 	#cluster finder arguments
 	#minimum of target genes found
 	min_target_prots = int(args.min_target_prots)

@@ -34,6 +34,10 @@ if __name__ == "__main__":
                 tax = ''
             desc = re.sub(',',';',r.description)
             desc = re.sub(' ?[Cc][Oo][Nn][Tt][Ii][Gg].*','',desc)
+            desc = re.sub(' ?[Nn][Oo][Dd][Ee].*','',desc)
+            desc = re.sub(' ?[Ss][cC][aA][Ff].*','',desc)
+            desc = re.sub(' ?[Pp][Ll][aA][Ss].*','',desc)
+            desc = re.sub(' ?[Cc][Hh][Rr][Oo].*','',desc)
             if 'comment' in r.annotations.keys():
                 if len(r.annotations['comment']) > 0:
                     comments = re.sub('[,]','; ',r.annotations['comment'])
