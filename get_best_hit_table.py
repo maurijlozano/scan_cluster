@@ -29,34 +29,49 @@ def parseArgs():
 	#Optional arguments for blast and HMM
 	parser.add_argument("--hmm_evalue",help="E-value cut-off for hmmsearch. Default = 0.00001", dest="hmm_evalue", action='store', default=0.00001)
 	parser.add_argument("--hmm_cover",help="HMM coverage cut-off for hmmsearch. Default = 45", dest="hmm_cover", action='store', default=45)
+	parser.add_argument("--ali_cover",help="Alignment coverage cut-off for hmmsearch. Default = 45", dest="ali_cover", action='store', default=45)
 	parser.add_argument("--Blast_evalue",help="E-value cut-off for remote blastp, used to retrieve homologs for HMM generation.", dest="evalue", action='store', default=0.00001)
 	parser.add_argument("--Blast_qcov",help="Query coverage percent for Blastp search. Default=45", dest="qcov", action='store', default=45)
 	parser.add_argument("--Blast_scov",help="Subject coverage percent for Blastp search. Default=45", dest="scov", action='store', default=45)
 	args = parser.parse_args()
 	return args
 
-def hmmsearchProtein(hmmf,hmm_evalue,hmm_cover):
+def hmmsearchProtein(hmmf,hmm_evalue,hmm_cover,ali_cover):
 	tableHeaders = ['target name', 'taccession', 'tlen', 'query name', 'qaccession', 'qlen', 'E-value', 'score', 'bias', '#', 'of', 'c-Evalue', 'i-Evalue', 'dom score', 'dom  bias', 'hmm from', 'hmm to', 'ali from', 'ali to', 'env from', 'env to', 'acc', 'description of target']
-	hmmHits = pd.read_table(hmmf, names=tableHeaders, comment='#', sep='\\s+').sort_values(["target name","E-value"])
-	hmmHits = hmmHits.sort_values("E-value")
-	hmmHitsPerGene = hmmHits.groupby(['query name'], as_index=False, ).first().sort_values("E-value")
-	hmmHitsPerGene = hmmHitsPerGene[hmmHitsPerGene['E-value'] < hmm_evalue]
-	hmmHitsPerGene.loc[:,'hmm cover'] = [(row['hmm to']-row['hmm from'])/row['qlen'] for _,row in hmmHitsPerGene.iterrows()]
-	hmmHitsPerGene = hmmHitsPerGene[hmmHitsPerGene['hmm cover'] >= hmm_cover]
-	hmmHitsPerGene = hmmHitsPerGene.reset_index(drop=True)
-	return(hmmHitsPerGene)
+	try:
+		hmmHits = pd.read_fwf(hmmf, comment='#', sep='\\s+', header=None)
+		renameDict = { old:new for old,new in zip(hmmHits.columns[0:len(tableHeaders)],tableHeaders)}
+		hmmHits = hmmHits.rename(columns=renameDict)
+		hmmHits = hmmHits.sort_values("E-value")
+		hmmHitsPerGene = hmmHits.groupby(['query name'], as_index=False, ).first().sort_values("E-value")
+		hmmHitsPerGene = hmmHitsPerGene[hmmHitsPerGene['E-value'] < hmm_evalue]
+		hmmHitsPerGene.loc[:,'hmm cover'] = [(row['hmm to']-row['hmm from'])/row['qlen'] for _,row in hmmHitsPerGene.iterrows()]
+		hmmHitsPerGene.loc[:,'ali cover'] = [(row['ali to']-row['ali from'])/row['tlen'] for _,row in hmmHitsPerGene.iterrows()]
+		hmmHitsPerGene = hmmHitsPerGene[hmmHitsPerGene['hmm cover'] >= hmm_cover]
+		hmmHitsPerGene = hmmHitsPerGene[hmmHitsPerGene['ali cover'] >= ali_cover]
+		hmmHitsPerGene = hmmHitsPerGene.reset_index(drop=True)
+		return(hmmHitsPerGene)
+	except:
+		print('Error. Check results.')
+		return(pd.DataFrame(columns=tableHeaders))
 
-def hmmsearchProteinCount(hmmf,hmm_evalue,hmm_cover):
+def hmmsearchProteinCount(hmmf,hmm_evalue,hmm_cover,ali_cover):
 	tableHeaders = ['target name', 'taccession', 'tlen', 'query name', 'qaccession', 'qlen', 'E-value', 'score', 'bias', '#', 'of', 'c-Evalue', 'i-Evalue', 'dom score', 'dom  bias', 'hmm from', 'hmm to', 'ali from', 'ali to', 'env from', 'env to', 'acc', 'description of target']
-	hmmHits = pd.read_table(hmmf, names=tableHeaders, comment='#', sep='\\s+').sort_values(["target name","E-value"])
-	hmmHits = hmmHits.sort_values("E-value")
-	hmmHits = hmmHits[hmmHits['E-value'] < hmm_evalue]
-	hmmHits.loc[:,'hmm cover'] = [(row['hmm to']-row['hmm from'])/row['qlen'] for _,row in hmmHits.iterrows()]
-	hmmHits = hmmHits[hmmHits['hmm cover'] >= hmm_cover]
-	hmmHitsPerGene = hmmHits.groupby(['query name'], as_index=False, )['target name'].count()
-	hmmHitsPerGene = hmmHitsPerGene.reset_index(drop=True)
-	return(hmmHitsPerGene)
-
+	try:
+		hmmHits = pd.read_fwf(hmmf, comment='#', sep='\\s+', header=None)
+		renameDict = { old:new for old,new in zip(hmmHits.columns[0:len(tableHeaders)],tableHeaders)}
+		hmmHits = hmmHits.rename(columns=renameDict)
+		hmmHits = hmmHits.sort_values("E-value")
+		hmmHits = hmmHits[hmmHits['E-value'] < hmm_evalue]
+		hmmHits.loc[:,'hmm cover'] = [(row['hmm to']-row['hmm from'])/row['qlen'] for _,row in hmmHits.iterrows()]
+		hmmHits.loc[:,'ali cover'] = [(row['ali to']-row['ali from'])/row['tlen'] for _,row in hmmHits.iterrows()]
+		hmmHits = hmmHits[hmmHits['hmm cover'] >= hmm_cover]
+		hmmHits = hmmHits[hmmHits['ali cover'] >= ali_cover]
+		hmmHitsPerGene = hmmHits.groupby(['query name'], as_index=False, )['target name'].count()
+		hmmHitsPerGene = hmmHitsPerGene.reset_index(drop=True)
+		return(hmmHitsPerGene)
+	except:
+		return(pd.DataFrame(columns=['query name','target name']))
 
 #Main
 if __name__ == "__main__":
@@ -87,6 +102,7 @@ if __name__ == "__main__":
 	#hmmsearch arguments
 	hmm_evalue = float(args.hmm_evalue)
 	hmm_cover = int(args.hmm_cover)/100
+	ali_cover = int(args.ali_cover)/100
 	################################################################
 	################################################################
 	if hmm_mode:
@@ -96,9 +112,12 @@ if __name__ == "__main__":
 		best_hits = pd.DataFrame(columns=tableHeaders)
 		count_Hits = pd.DataFrame(columns=['query name','target name','Genome'])
 		for hmmf in hmm_files:
-			bH = hmmsearchProtein(hmmf,hmm_evalue,hmm_cover)
+			print(f'Print processing {hmmf}')
+			bH = hmmsearchProtein(hmmf,hmm_evalue,hmm_cover,ali_cover)
+			if len(bH) == 0:
+				continue
 			bH.loc[:,'Genome'] = os.path.split(os.path.split(hmmf)[0])[1]
-			countH = hmmsearchProteinCount(hmmf,hmm_evalue,hmm_cover)
+			countH = hmmsearchProteinCount(hmmf,hmm_evalue,hmm_cover,ali_cover)
 			countH.loc[:,'Genome'] = os.path.split(os.path.split(hmmf)[0])[1]
 			if len(best_hits) > 0 and len(bH) > 0:
 				best_hits = pd.concat([best_hits,bH])
@@ -125,6 +144,8 @@ if __name__ == "__main__":
 			blast_tabl.sort_values(['evalue'])
 			blast_tabl_bh = blast_tabl.groupby(['query name'], as_index=False, ).first().sort_values("E-value")
 			blast_tabl_count = blast_tabl.groupby(['query name'], as_index=False, )['target name'].count()
+			if len(blast_tabl_bh) == 0:
+				continue
 			blast_tabl_bh['Genome'] = os.path.split(os.path.split(blast_out)[0])[1]
 			blast_tabl_count['Genome'] = os.path.split(os.path.split(blast_out)[0])[1]
 			blast_tabl_bh = blast_tabl_bh.reset_index(drop=True)
