@@ -36,7 +36,7 @@ def getGenomeInfoFromTable(gtable):
     import pandas as pd
     import re
     table = pd.read_csv(gtable)
-    gdict = {r['Assembly Accession number']:re.sub(' ?[CNSPcnsp][OCLHoclh][NDARndar][TEFSOtefso].*$','',r['Description'].split(',')[0]) for _,r in table.iterrows()}
+    gdict = {r['Assembly Accession number']:re.sub(' ?[CNSPcnsp][OCLHoclh][NDARndar][TEFSOtefso].*$','',r['Description'].split(';')[0]) for _,r in table.iterrows()}
     return(gdict)
 
 if __name__ == "__main__":
@@ -45,13 +45,19 @@ if __name__ == "__main__":
     afile = args.afile
     if args.gfolder and not args.gtable:
         genomeFolder= args.gfolder
-        print(f'Processing {tree_file},{genomeFolder},{afile}...')
-        useGBFiles = True
+        if os.path.exists(genomeFolder):
+            print(f'Processing {tree_file},{genomeFolder},{afile}...')
+            useGBFiles = True
+        else:
+            sys.exit(f'{genomeFolder} not found...')
     elif args.gtable and not args.gfolder:
         gtable = args.gtable
-        gdict = getGenomeInfoFromTable(gtable)
-        print(f'Processing {tree_file},{gtable},{afile}...')
-        useGBFiles = False
+        if os.path.exists(gtable):
+            gdict = getGenomeInfoFromTable(gtable)
+            print(f'Processing {tree_file},{gtable},{afile}...')
+            useGBFiles = False
+        else:
+            sys.exit(f'{gtable} not found...')
     else:
         sys.exit(f'Error: Genome folder or genome.csv files required...')
     
