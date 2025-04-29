@@ -36,7 +36,7 @@ def getGenomeInfoFromTable(gtable):
     import pandas as pd
     import re
     table = pd.read_csv(gtable)
-    gdict = {r['Assembly Accession number']:re.sub(' ?[CNSPcnsp][OCLHoclh][NDARndar][TEFSOtefso].*$','',r['Description']) for _,r in table.iterrows()}
+    gdict = {r['Assembly Accession number']:re.sub(' ?[CNSPcnsp][OCLHoclh][NDARndar][TEFSOtefso].*$','',r['Description'].split(',')[0]) for _,r in table.iterrows()}
     return(gdict)
 
 if __name__ == "__main__":
