@@ -11,7 +11,6 @@ BLAST_DBS = ['nr', 'refseq_select_prot', 'refseq_protein', 'SMARTBLAST/landmark'
 import argparse, sys, os, subprocess, re, glob
 from datetime import datetime
 from copy import deepcopy
-from datetime import datetime
 
 #Third party modules
 from Bio import SeqIO
@@ -64,12 +63,15 @@ def parseArgs():
 	searchOpt.add_argument("--Blast_DB",help="Database for remote blastp, used to retrieve homologs for HMM generation. Default = refseq_protein. Available: nr, refseq_select, refseq_protein, landmark, swissprot, pataa, pdb, env_nr, tsa_nr", dest="blastp_database", action='store', default='refseq_protein')
 	#
 	searchOpt.add_argument("--Blast_evalue",help="E-value cut-off for remote blastp, used to retrieve homologs for HMM generation.", dest="evalue", action='store', default=0.00001)
-	searchOpt.add_argument("--Blast_max_targets",help="Maxímum number of targets for Blastp search. Default=250", dest="max_target", action='store', default=250)
+	searchOpt.add_argument("--Blast_max_targets",help="Maxímum number of targets for Blastp search. These results will be used to build HMMs for each protein in the cluster. Default=250", dest="max_target", action='store', default=250)
+	searchOpt.add_argument("--Only_Blast_max_targets",help="Maxímum number of targets for Blastp search in the only blast mode. Default=100", dest="max_target_only_Blast_mode", action='store', default=100)
+	#
 	searchOpt.add_argument("--Blast_qcov",help="Query coverage percent for Blastp search. Default=45", dest="qcov", action='store', default=45)
 	searchOpt.add_argument("--Blast_scov",help="Subject coverage percent for Blastp search. Default=45", dest="scov", action='store', default=45)
 	searchOpt.add_argument("--hmm_evalue",help="E-value cut-off for hmmsearch. Default = 0.00001", dest="hmm_evalue", action='store', default=0.00001)
 	searchOpt.add_argument("--hmm_cover",help="HMM coverage cut-off for hmmsearch. Default = 45", dest="hmm_cover", action='store', default=45)	
 	searchOpt.add_argument("--ali_cover",help="Alignment coverage cut-off for hmmsearch. Default = 45", dest="ali_cover", action='store', default=45)
+	searchOpt.add_argument("--use_most_Similar",help="Use the 100 the first 100 hits to build the HMM. Otherwise (default) a diverse selection of hits will be used.. Default = True", dest="use_most_Similar", action='store_true')
 	#
 	args = parser.parse_args()
 	return args
@@ -119,7 +121,8 @@ def genbankToDict(genbankFile):
 		if record.features:
 			for feat in record.features:
 				if feat.type == "CDS":
-					if not 'pseudo' in feat.qualifiers:
+					#if not 'pseudo' in feat.qualifiers:
+					if 'translation' in feat.qualifiers:
 						UID = "UID"+str(count)
 						proteinSeq = feat.qualifiers['translation'][0]
 						if "locus_tag" in feat.qualifiers.keys():
@@ -165,7 +168,8 @@ def hmmsearchProtein(proteomeFile,hmm_file,sres_folder,hmm_evalue):
 	subprocess.call(['hmmsearch', "--domtblout", resFile , hmm_file , proteomeFile], stdout=subprocess.DEVNULL)
 	tableHeaders = ['target name', 'taccession', 'tlen', 'query name', 'qaccession', 'qlen', 'E-value', 'score', 'bias', '#', 'of', 'c-Evalue', 'i-Evalue', 'dom score', 'dom  bias', 'hmm from', 'hmm to', 'ali from', 'ali to', 'env from', 'env to', 'acc', 'description of target']
 	try:
-		hmmHits = pd.read_fwf(resFile, comment='#', sep='\\s+', header=None)
+		#hmmHits = pd.read_fwf(resFile, comment='#', sep='\\s+', header=None) #Removed because it fail with some hmmsearch.txt not being correclty formatted with fixed with
+		hmmHits = pd.read_table(resFile, comment='#', sep='\\s+', header=None, usecols=range(22))
 	except:
 		print(f'---> No homologs found. Empty hmmsearch.txt file...')
 		return(pd.DataFrame(columns = tableHeaders))
@@ -204,10 +208,15 @@ def get_oriented_cluster_with_score(region_file, hit_table,proteins):
 						locusTag = "ND"
 					repl_locusTag = f'{rid}|{locusTag}'
 					hit = hit_table[hit_table['replicon_locus_tag'] == repl_locusTag]
+					query = ''
 					if len(hit) > 0:
-						query = hit['query name'].iloc[0]
-					else:
-						query = ''
+						for qh in hit['query name']:
+							if qh == locusTag:
+								query = qh
+							break
+						if query == '':
+							','.join(hit['query name'].to_list())
+					#
 					cluster_structure.append((repl_locusTag,query,size,strand))
 					pfile.write(f'>{rid}|{locusTag}\n{feat.qualifiers["translation"][0]}\n')
 	return(cluster_structure)
@@ -221,6 +230,7 @@ def extract_cluster(genbankFile,replicon_id,cstart,cend,res_folder):
 		if replicon_id:
 			for r in SeqIO.parse(genbankFile,'gb'):
 				if r.id == replicon_id:
+					cstart = cstart-1
 					query_cluster = r[cstart:cend]
 					id_found = True
 			if not id_found:
@@ -248,8 +258,7 @@ def extract_cluster(genbankFile,replicon_id,cstart,cend,res_folder):
 							locusTag = feat.qualifiers["gene"][0]
 						if 'protein_id' in feat.qualifiers:
 							proteinID = feat.qualifiers['protein_id'][0]
-						translation = feat.qualifiers['translation'][0]
-						faa.write(f'>{locusTag}|{proteinID}|{description}\n{translation}\n')
+						faa.write(f'>{locusTag}|{proteinID}|{description}\n{proteinSeq}\n')
 		else:
 			write_to_log(log_file,f'No CDS were found in the query cluster...')
 			sys.exit(f'No CDS were found in the query cluster...')
@@ -257,7 +266,7 @@ def extract_cluster(genbankFile,replicon_id,cstart,cend,res_folder):
 
 #Function that makes a remote blast search against NCBI refseq_proteins, then
 # makes a MSA with MAFFT L-INS-I, and generates an HMM
-def generate_HMM(query_cluster_faa,evalue,blastp_database,qcov,scov,res_folder,local_blast_db,hmm_folder):
+def generate_HMM(query_cluster_faa,evalue,blastp_database,qcov,scov,res_folder,local_blast_db,hmm_folder,use_most_Similar):
 	HMMs = []
 	blast_out = os.path.join(res_folder,'blast.res')
 	temp_file = os.path.join(res_folder,'temp.faa')
@@ -268,7 +277,8 @@ def generate_HMM(query_cluster_faa,evalue,blastp_database,qcov,scov,res_folder,l
 			HMMs.append(hmm)
 			continue
 		SeqIO.write(protein,temp_file,'fasta')
-		if local_blast_db == '':	
+		if local_blast_db == '':
+			print(f'A local databse was not specified. Using remote blast with {blastp_database} database...')	
 			blast_command = f"blastp -db {blastp_database} -query {temp_file} -remote -out {blast_out} -max_target_seqs {max_target} -word_size 5 -evalue {evalue} -outfmt '6 qseqid sseqid pident length qstart qend qlen sstart send slen evalue bitscore sseq' 1>> {log_file}"
 			write_to_log(log_file,f'Running blastp in remote mode to retrieve {ltag} homologs for HMM construction.')
 			print(f'> Running blastp in remote mode to retrieve {ltag} homologs for HMM construction.')
@@ -294,13 +304,17 @@ def generate_HMM(query_cluster_faa,evalue,blastp_database,qcov,scov,res_folder,l
 		blast_tabl['scov'] = [ (row['send']-row['sstart'])/row['slen'] for _,row in blast_tabl.iterrows()]
 		blast_tabl = blast_tabl[(blast_tabl['qcov'] >= qcov ) & (blast_tabl['scov'] >= scov )]
 		#read blast results for each protein
-		blast_tabl.sort_values(['pident'])
-		if len(blast_tabl) > 100:
-			pick_one_every = len(blast_tabl)//100
-			indices_to_pick = [ i for i in range(0,len(blast_tabl),pick_one_every) ][0:100]
-			subtable_pick100 = blast_tabl.iloc[indices_to_pick,]
+		if not use_most_Similar:
+			blast_tabl.sort_values(['pident'])
+			if len(blast_tabl) > 100:
+				pick_one_every = len(blast_tabl)//100
+				indices_to_pick = [ i for i in range(0,len(blast_tabl),pick_one_every) ][0:100]
+				subtable_pick100 = blast_tabl.iloc[indices_to_pick,]
+			else:
+				subtable_pick100 = blast_tabl
 		else:
-			subtable_pick100 = blast_tabl
+			blast_tabl.sort_values(['bitscore'], ascending=False)
+			subtable_pick100 = blast_tabl.iloc[:100]
 		#
 		blast_fasta = os.path.join(res_folder,f'blast_{ltag}.fasta')
 		blast_fasta_aln = os.path.join(res_folder,f'blast_{ltag}_aln.fasta')
@@ -337,10 +351,22 @@ def find_clusters(protHits,nprot,prots_between,max_alien_prots,min_target_prots,
 	protHits.loc[:,'tuid'] = [int(re.sub('UID','',n.split('|')[1])) for n in protHits['target name']]
 	clusters = []
 	contigsWithHit = protHits['taccession'].unique()
+	prot_dict = {}
+	##
+	#prot_dict = { row['target name'].split('|')[1]:row['query name'] for _,row in protHits.iterrows()}	
+	#
+	for _,row in protHits.iterrows():
+		uID = row['target name'].split('|')[1]
+		qName = row['query name']
+		if not uID in prot_dict:
+			prot_dict[uID] = [qName]
+		else:
+			prot_dict[uID].append(qName)
+	##
 	for cwh in contigsWithHit:
 		protHits_ctg = protHits[protHits['taccession'] == cwh]
-		prot_dict = { row['target name'].split('|')[1]:row['query name'] for _,row in protHits_ctg.iterrows()}	
-		prot_numbers = [ int(t.split('|')[1][3:]) for t in protHits_ctg['target name']]
+
+		prot_numbers = list(set([ int(t.split('|')[1][3:]) for t in protHits_ctg['target name']]))
 		prot_numbers.sort()		
 		prots_in_cluster = []
 		for i in range(len(prot_numbers)-1):
@@ -354,28 +380,49 @@ def find_clusters(protHits,nprot,prots_between,max_alien_prots,min_target_prots,
 				clusters.append(prots_in_cluster)
 				prots_in_cluster = []
 	#
-	clusters = [ clust for clust in clusters if len(clust) >= min_target_prots]
 	#
 	validated_clusters = []
 	validated_clusters_UIDS = []
-	for cluster in clusters:
-		nprots_found_in_cluster = len(cluster)
-		cluster_coverage = (nprots_found_in_cluster)/nprot
-		if cluster_coverage < min_cluster_coverage:
-			print(f'--> Cluster {cluster} discarded due to low cluster coverage: {cluster_coverage} < {min_cluster_coverage}')
-			continue
-		else:
+	discarded_clusters_file = os.path.join(res_folder,'discarded_clusters.txt')
+	with open(discarded_clusters_file,'a') as dis_file:
+		count_discarded = 0
+		count_paralogs = 0
+		for cluster in clusters:
+			cluster_len = len(cluster)
+			if cluster_len < min_target_prots:
+				if cluster_len > 1:
+					dis_file.write(f'--> Cluster {sgenbankFile}: {cluster} discarded because it has less than {min_target_prots} target proteins...\n')
+					count_discarded +=1
+				continue
 			cluster_structure = list(range(min(cluster),max(cluster)+1))
-			cluster_structure_homologs = [ prot_dict[f'UID{number}'] if f'UID{number}' in prot_dict.keys() else f'UID{number}' for number in cluster_structure]
+			cluster_structure_homologs = [ '|'.join(prot_dict[f'UID{number}']) if f'UID{number}' in prot_dict.keys() else f'UID{number}' for number in cluster_structure]
 			cluster_structure_UIDS = [ f'UID{number}' for number in cluster_structure]
+			#
+			cluster_structure_found_homologs = set(','.join([ ','.join(prot_dict[f'UID{number}']) for number in cluster_structure if f'UID{number}' in prot_dict.keys()]).split(','))
+			nprots_found_in_cluster = min(cluster_len,len(cluster_structure_found_homologs))
+			if abs(cluster_len-len(cluster_structure_found_homologs)) > cluster_len/2:
+				count_paralogs +=1
+				
 			total_prots_in_cluster = len(cluster_structure)
 			alien_prots = total_prots_in_cluster-nprots_found_in_cluster
 			if alien_prots >= max_alien_prots:
-				print(f'--> Cluster {cluster} discarded due to an excessive number of alien proteins: {alien_prots} > {max_alien_prots}')
+				dis_file.write(f'--> Cluster {sgenbankFile}: {cluster} discarded due to an excessive number of alien proteins: {alien_prots} > {max_alien_prots}\n')
+				count_discarded +=1
+				continue
+			#
+			cluster_coverage = (nprots_found_in_cluster)/nprot
+			if cluster_coverage < min_cluster_coverage:
+				dis_file.write(f'--> Cluster {sgenbankFile}: {cluster} discarded due to low cluster coverage: {cluster_coverage} < {min_cluster_coverage}\n')
+				count_discarded +=1
 				continue
 			validated_clusters.append(cluster_structure_homologs)
 			validated_clusters_UIDS.append(cluster_structure_UIDS)
 	#
+	if count_discarded > 0:
+		print(f'A total of {count_discarded} clusters were discarded in {sgenbankFile} genome...\n')
+	if count_paralogs > 0:
+		print(f'Warning: {count_paralogs} of the clusters have a high number of duplicated hits and may have been discarded by low coverage...')
+	
 	protHits.loc[:,'cluster'] = ''
 	for i,c in enumerate(validated_clusters_UIDS):
 		protHits.loc[:,'cluster'] = [ i if row['target name'].split('|')[1] in c else row['cluster'] for _,row in protHits.iterrows() ]
@@ -427,7 +474,7 @@ def scan_cluster_Blastp(cluster_faa_file, nprot, prots_between,max_alien_prots, 
 		sys.exit(f"Error: Is {sgenome_name} genome in genbank format?")
 	#local Blast cluster_faa_file vs proteomeFile.
 	blast_out = os.path.join(sres_folder,'blast.res')
-	blast_command = f"blastp -subject {proteomeFile} -query {cluster_faa_file} -out {blast_out} -max_target_seqs {max_target} -word_size 3 -evalue {evalue} -outfmt '6 qseqid sseqid pident length qstart qend qlen sstart send slen evalue bitscore sseq' 1>> {log_file}"
+	blast_command = f"blastp -subject {proteomeFile} -query {cluster_faa_file} -out {blast_out} -max_target_seqs {max_target_only_Blast_mode} -word_size 3 -evalue {evalue} -outfmt '6 qseqid sseqid pident length qstart qend qlen sstart send slen evalue bitscore sseq' 1>> {log_file}"
 	write_to_log(log_file,f'Running blastp to retrieve homologs for cluster identification ({sgenbankFile}).')
 	print(f'> Running blastp to retrieve homologs for cluster identification ({sgenbankFile}).')
 	os.system(blast_command)
@@ -457,10 +504,10 @@ def extract_gb_region_for_clinker(sgenbankFile, sgenbankDict, validated_clusters
 		for k in sgenbankDict:
 			if cluster[0] in sgenbankDict[k].keys():
 				cluster_replicon = k
-				start_coord = min([sgenbankDict[k][uid][3] for uid in cluster])-50
+				start_coord = min([sgenbankDict[k][uid][3] for uid in cluster])-25
 				if start_coord < 0:
 					start_coord = 0
-				end_coord = max([sgenbankDict[k][uid][4] for uid in cluster])+50
+				end_coord = max([sgenbankDict[k][uid][4] for uid in cluster])+25
 				break
 		if (start_coord == '') or (end_coord == ''):
 			message = f'Error: Start or end extraction locations not found...'
@@ -565,7 +612,7 @@ def get_alien_proteins_id_scores(cluster_dict, proteins, alignments_folder,evalu
 			id_dict.update(get_id_dict_from_msa(alien_aignment_file))
 	return(id_dict)
 
-#DP alignment works, but to improve
+#DP alignment
 def compareByDP(cluster_i,cluster_j,id_dict, gap, mismatch):
 	if cluster_i != cluster_j:
 		nA = len(cluster_i)
@@ -890,6 +937,13 @@ def printClusters(reoriented_cluster_dict,clusterFile):
 			clusterText = " ".join( [ list(g)[0] for g in v]  )
 			cf.write(f'{k}\t{clusterText}\n')
 
+def printValClusters(all_validated_clusters,clusterFile):
+	with open(clusterFile,'w') as cf:
+		cf.write('Genome File\tCluster')
+		for gf,cs in all_validated_clusters.items():
+			for c in cs:
+				clusterText = " ".join( [ g for g in c ] )
+				cf.write(f'{gf}\t{clusterText}\n')
 
 #######################################################################
 #######################################################################
@@ -981,6 +1035,10 @@ if __name__ == "__main__":
 			sys.exit('Error: Query genbank file not found...')
 		if args.repid:
 			replicon_id = args.repid
+			rids = [ r.id for r in SeqIO.parse(genbankFile,'gb') ]
+			if not replicon_id in rids:
+				write_to_log(log_file,f'Error: Replicon/contig ID {replicon_id} not found in the genbank file...')
+				sys.exit(f'Error: Replicon/contig ID {replicon_id} not found in the genbank file...')
 		else:
 			number_of_replicons = len(list(SeqIO.parse(genbankFile,'gb')))
 			if not number_of_replicons == 1:
@@ -1021,6 +1079,7 @@ if __name__ == "__main__":
 		qcluster = False
 		hmm_folder = args.hmm_folder
 		skip_generate_HMM = True
+		print('-Q -R -s -e options will be ignored. Using HMM to search for clusters.')
 	else:
 		write_to_log(log_file,f'Error: A query cluster file in Genbank format is required...')
 		sys.exit(f'Error: A query cluster file in Genbank format is required...')
@@ -1062,6 +1121,11 @@ if __name__ == "__main__":
 		write_to_log(log_file,f'Error: {blastp_database} blastp database not available...')
 		sys.exit(f'Error: {blastp_database} blastp database not available...')
 	max_target = int(args.max_target)
+	max_target_only_Blast_mode = int(args.max_target_only_Blast_mode)
+	#if there are many genomes increase max_targets.
+	if len(sgenbankFiles) > 25:
+		max_target = min(len(sgenbankFiles)*10,5000)
+	#
 	qcov = int(args.qcov)/100
 	scov = int(args.scov)/100
 	#hmmsearch arguments
@@ -1075,7 +1139,7 @@ if __name__ == "__main__":
 	#
 	################################################################
 	################################################################
-	print('\nStarting the analysis...')
+	print('\nStarting the analysis...\n')
 	#Database for hmm generation: local
 	local_blast_db = args.local_blast_db
 	if not os.path.exists(f'{local_blast_db}.psq') and (local_blast_db != ''):
@@ -1087,27 +1151,28 @@ if __name__ == "__main__":
 	#if local database generated from subject genomes
 	if (args.local_blast_db_subject) and (args.sfolder):
 		#make blast db
-		write_to_log(log_file,'Generating Blast database from genbank files...')
-		print('> Generating Blast database from genbank files...')
-		local_blast_db_path = os.path.join(res_folder,'blastDB')
-		if not os.path.exists(local_blast_db_path):
-			os.mkdir(local_blast_db_path)
-		local_blast_db = os.path.join(local_blast_db_path,'blastDB')
-		proteomes = []
-		for subject in sgenbankFiles:
-			sgenome_name = os.path.splitext(os.path.basename(subject))[0]
-			genbankDict, description = genbankToDict(subject)
-			proteomes.append(extractProteome(genbankDict,local_blast_db_path,sgenome_name))
-		blastp_faa = os.path.join(local_blast_db_path,'blastp_db.faa')
-		os.system(f'cat {" ".join(proteomes)} > {blastp_faa}')
-		os.system(f'makeblastdb -dbtype prot -in {blastp_faa} -out {local_blast_db} 1>> {log_file}')	
+		if not skip_generate_HMM:
+			write_to_log(log_file,'Generating Blast database from genbank files...')
+			print('> Generating Blast database from genbank files...')
+			local_blast_db_path = os.path.join(res_folder,'blastDB')
+			if not os.path.exists(local_blast_db_path):
+				os.mkdir(local_blast_db_path)
+			local_blast_db = os.path.join(local_blast_db_path,'blastDB')
+			proteomes = []
+			for subject in sgenbankFiles:
+				sgenome_name = os.path.splitext(os.path.basename(subject))[0]
+				genbankDict, description = genbankToDict(subject)
+				proteomes.append(extractProteome(genbankDict,local_blast_db_path,sgenome_name))
+			blastp_faa = os.path.join(local_blast_db_path,'blastp_db.faa')
+			os.system(f'cat {" ".join(proteomes)} > {blastp_faa}')
+			os.system(f'makeblastdb -dbtype prot -in {blastp_faa} -out {local_blast_db} 1>> {log_file}')
+			print(f'-> Using local blast database: {local_blast_db}...')	
 	#
-	print(f'-> Using local blast database: {local_blast_db}...')
 	################################################################
 	################################################################
 	only_blastp = args.only_blastp
-	#
-	print(f'\nProcessing genomes...')
+	use_most_Similar = args.use_most_Similar
+	#reference genome, for cluster ordering
 	subject_file_basenames = [ os.path.basename(f) for f in sgenbankFiles]
 	if (genbankFile) and (not args.qcluster):
 		ref_file_basename = os.path.basename(genbankFile) 
@@ -1120,10 +1185,20 @@ if __name__ == "__main__":
 		else:
 			print(f'-> {args.refgenome} not found- Using {sgenbankFiles[0]} as reference genome...')
 			ref_file_basename = os.path.basename(sgenbankFiles[0])
+	elif args.hmm_folder and args.refgenome:
+		ref_file_basename = os.path.basename(args.refgenome)
+		if os.path.exists(args.refgenome):
+			print(f'-> Using {args.refgenome} as reference genome...')
+		else:
+			print(f'-> {args.refgenome} not found- Using {sgenbankFiles[0]} as reference genome...')
+			ref_file_basename = os.path.basename(sgenbankFiles[0])
 	else:
 		ref_file_basename = os.path.basename(sgenbankFiles[0])
+	#Start processing
+	print(f'\nProcessing genomes...')
 	hit_table = pd.DataFrame(columns=['query name','target name', 'id_score','qcover','cluster','cluster_file'])
 	gb_regions_for_clinker = os.path.join(res_folder,'GB_for_Clinker')
+	all_validated_clusters = {}
 	if not os.path.exists(gb_regions_for_clinker):
 		os.mkdir(gb_regions_for_clinker)
 	if not only_blastp:
@@ -1137,7 +1212,7 @@ if __name__ == "__main__":
 		else:
 			cluster_faa_file = extract_cluster(genbankFile,replicon_id,cstart,cend,res_folder)
 			#generates HMMs for each protein in cluster. If local_blast_db='' it uses remote search (slow)
-			HMMs = generate_HMM(cluster_faa_file,evalue,blastp_database,qcov,scov,res_folder,local_blast_db,hmm_folder)
+			HMMs = generate_HMM(cluster_faa_file,evalue,blastp_database,qcov,scov,res_folder,local_blast_db,hmm_folder,use_most_Similar)
 			nprot = len(HMMs)
 		#define the numbert of protein between consecutive genes
 		if args.prots_between:
@@ -1159,6 +1234,7 @@ if __name__ == "__main__":
 				if len(validated_clusters) == 0:
 					print(f'--> No clusters found on {sgenbankFile}...')
 					continue
+				all_validated_clusters[sgenbankFile]=validated_clusters
 				#get coordinates of genomic region to extract from genbank file --> for clinker
 				region_file_path = extract_gb_region_for_clinker(sgenbankFile, sgenbankDict, validated_clusters_UIDS, gb_regions_for_clinker)
 				#
@@ -1199,6 +1275,7 @@ if __name__ == "__main__":
 			if len(validated_clusters) == 0:
 				print(f'--> No clusters found on {sgenbankFile}...')
 				continue
+			all_validated_clusters[sgenbankFile]=validated_clusters
 			#get coordinates of genomic region to extract from genbank file --> for clinker
 			region_file_path = extract_gb_region_for_clinker(sgenbankFile, sgenbankDict, validated_clusters_UIDS, gb_regions_for_clinker)
 			#blast_tabl use pident as measure of
@@ -1220,6 +1297,9 @@ if __name__ == "__main__":
 	hit_table.loc[:,'locus tag'] = [ row['target name'].split('|')[2] for _,row in hit_table.iterrows() ]
 	hit_table.loc[:,'replicon_locus_tag'] = [ f"{row['target name'].split('|')[0]}|{row['target name'].split('|')[2]}" for _,row in hit_table.iterrows() ]
 	hit_table = hit_table.reset_index(drop=True)
+	#Save table
+	hit_table.to_csv(os.path.join(res_folder, 'hits_in_clusters.csv'))
+	#
 	region_files = glob.glob(os.path.join(gb_regions_for_clinker,'*.gb'))
 	#here regions for clinker are read and compared based on the query proteins/cluster. The order and orientation of the genes are taken in account
 	#function that returns the structure of the operon with the gene orientations
@@ -1264,7 +1344,9 @@ if __name__ == "__main__":
 	pretty_cluster_dict_keys = [os.path.basename(os.path.splitext(k)[0]) for k in cluster_dict_keys]
 	#
 	clusterFile = os.path.join(res_folder,'clusters.txt')
+	clusterFile2 = os.path.join(res_folder,'clusters_homologs_in_query.txt')
 	printClusters(reoriented_cluster_dict,clusterFile)
+	printValClusters(all_validated_clusters,clusterFile2)
 	#
 	if len(reoriented_cluster_dict) > 200:
 		sys.setrecursionlimit(len(reoriented_cluster_dict)*100)
@@ -1313,4 +1395,4 @@ if __name__ == "__main__":
 		write_to_log(log_file, f'Generating Multiple cluster alignment ITOL annotation for the cluster distance tree: {os.path.join(res_folder,"iTOLData.txt")}')
 	else:
 		print(f'Only one cluster was found... No tree will be generated...')
-	print(f'\nAnalysis done! Please find your results on the {res_folder} folder...\nThank you for using {NAME}!\n\n')
+	print(f'\nAnalysis done! Please find your results on the {res_folder} folder...\nMore information about discardedclusters can be found in <discarded_clusters.txt>...\nThank you for using {NAME}!\n\n')
