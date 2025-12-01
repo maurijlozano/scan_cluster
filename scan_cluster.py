@@ -51,7 +51,7 @@ def parseArgs():
 	#add maximum number of genes not belonging to cluster to end cluster definition
 	clusterOPts = parser.add_argument_group('Cluster definition arguments')
 	clusterOPts.add_argument("-n", "--n_prots_between",help="Maximum number of proteins allowed between two consecutive genes in the query cluster. Default = half of proteins in the cluster", dest="prots_between", action='store')
-	clusterOPts.add_argument("-M", "--max_alien_prots",help="Maximum number of proteins in the target cluster that are not present in the query cluster. Default = not limited (Number of proteins in cluster * 3).", dest="max_alien_prots", action='store')
+	clusterOPts.add_argument("-M", "--max_alien_prots",help="Maximum number of proteins in the target cluster that are not present in the query cluster. Default = Number of proteins in cluster * 3.", dest="max_alien_prots", action='store')
 	clusterOPts.add_argument('-m', "--min_target_prots",help="Minimum of query proteins required to be found in target cluster. Default=3.)", dest="min_target_prots", action='store', default=3)
 	clusterOPts.add_argument("--min_cluster_coverage",help="Minimum of cluster coverage, proportion. Default=.5. The program will use as minimum half of the query proteins. If you are running only with HMMs, this value should be the fraction of the HMM required in a cluster.)", dest="min_cluster_coverage", action='store', default=0.5)
 	clusterOPts.add_argument('-g', "--gap_penalty",help="Gap penalty for cluster alignment. Default = 10", dest="gap", action='store', default=10)
@@ -1224,6 +1224,9 @@ if __name__ == "__main__":
 			max_alien_prots = int(args.max_alien_prots)
 		else:
 			max_alien_prots = int(nprot*3)
+		if min_target_prots < nprot:
+			print(f'--> Adjusting minimum target proteins from {min_target_prots} to {nprot/2} (half of the total proteins in the HMM set)...')
+			min_target_prots = max(int(nprot/2),1)
 		#search for clusters
 		if len(sgenbankFiles) == 1:
 			print(f'Please use Only Blast method to run with a single genome...')
@@ -1258,6 +1261,9 @@ if __name__ == "__main__":
 	else:
 		cluster_faa_file = extract_cluster(genbankFile,replicon_id,cstart,cend,res_folder)
 		nprot = len([1 for i in SeqIO.parse(cluster_faa_file,'fasta')])
+		if min_target_prots < nprot:
+			print(f'--> Adjusting minimum target proteins from {min_target_prots} to {nprot/2} (half of the total proteins in the HMM set)...')
+			min_target_prots = max(int(nprot/2),1)
 		#define the numbert of protein between consecutive genes
 		if args.prots_between:
 			prots_between = int(args.prots_between)

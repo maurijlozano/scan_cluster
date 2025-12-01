@@ -23,10 +23,10 @@ def getGenomeInfo(gfile):
     try:
         name = list(SeqIO.parse(gfile,'gb'))[0].description.split(',')[0]
         name = re.sub(' ?[Cc][Oo][Nn][Tt][Ii][Gg].*$','',name)
-        desc = re.sub(' ?[Nn][Oo][Dd][Ee].*$','',desc)
-        desc = re.sub(' ?[Ss][cC][aA][Ff].*$','',desc)
-        desc = re.sub(' ?[Pp][Ll][aA][Ss].*$','',desc)
-        desc = re.sub(' ?[Cc][Hh][Rr][Oo].*$','',desc)
+        name = re.sub(' ?[Nn][Oo][Dd][Ee].*$','',name)
+        name = re.sub(' ?[Ss][cC][aA][Ff].*$','',name)
+        name = re.sub(' ?[Pp][Ll][aA][Ss].*$','',name)
+        name = re.sub(' ?[Cc][Hh][Rr][Oo].*$','',name)
         return(accession, name)
     except:
         print(f'Error: can not get the genome name, the accession number {accession} will not be renamed...')
