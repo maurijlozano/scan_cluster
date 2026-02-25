@@ -1,7 +1,6 @@
 # Scan Cluster
 
-:point_right: Run in Google Colab: [Scan cluster Colab](https://colab.research.google.com/drive/1-2OuKDcItqsDPRNqb1KkT2YLgDX_70Mv?usp=sharing)
-
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/maurijlozano/scan_cluster/blob/main/scan_cluster.ipynb)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15195352.svg)](https://doi.org/10.5281/zenodo.15195352)
 
 
