@@ -144,8 +144,10 @@ def genbankToDict(genbankFile):
 					elif 'isolate' in feat.qualifiers.keys():
 						strain = feat.qualifiers['isolate'][0]
 						organism = feat.qualifiers['organism'][0] + ' (' + strain +')'
-					else:
+					elif 'organism' in feat.qualifiers.keys():
 						organism = feat.qualifiers['organism'][0]
+					else:
+						organism = 'Replicon: '+record.id
 		description[record.id] = organism
 		genbankDict[record.id] = featuresDict
 	return(genbankDict,description)
