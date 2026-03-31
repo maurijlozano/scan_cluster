@@ -8,7 +8,7 @@ BLAST_DBS = ['nr', 'refseq_select_prot', 'refseq_protein', 'SMARTBLAST/landmark'
 
 #Imports
 #Python modules
-import argparse, sys, os, subprocess, re, glob
+import argparse, sys, os, subprocess, re, glob, random
 from datetime import datetime
 from copy import deepcopy
 
@@ -371,16 +371,29 @@ def find_clusters(protHits,nprot,prots_between,max_alien_prots,min_target_prots,
 		prot_numbers = list(set([ int(t.split('|')[1][3:]) for t in protHits_ctg['target name']]))
 		prot_numbers.sort()		
 		prots_in_cluster = []
-		for i in range(len(prot_numbers)-1):
-			if len(prots_in_cluster) == 0:
+		#for i in range(len(prot_numbers)-1):
+		#	if len(prots_in_cluster) == 0:
+		#		prots_in_cluster.append(prot_numbers[i])
+		#	if prot_numbers[i+1]-prot_numbers[i] <= prots_between:
+		#		prots_in_cluster.append(prot_numbers[i+1])
+		#		if i == len(prot_numbers)-2:
+		#			clusters.append(prots_in_cluster)	
+		#	else:
+		#		clusters.append(prots_in_cluster)
+		#		prots_in_cluster = []
+		#Replaced by this to avoid missing last clusters with only one protein
+		for i in range(len(prot_numbers)):
+			if i == 0:
 				prots_in_cluster.append(prot_numbers[i])
-			if prot_numbers[i+1]-prot_numbers[i] <= prots_between:
-				prots_in_cluster.append(prot_numbers[i+1])
-				if i == len(prot_numbers)-2:
-					clusters.append(prots_in_cluster)	
 			else:
-				clusters.append(prots_in_cluster)
-				prots_in_cluster = []
+				if prot_numbers[i]-prot_numbers[i-1] <= prots_between:
+					prots_in_cluster.append(prot_numbers[i])
+				else:
+					clusters.append(prots_in_cluster)
+					prots_in_cluster = [prot_numbers[i]]
+		clusters.append(prots_in_cluster)
+		#
+		#
 	#
 	#
 	validated_clusters = []
@@ -404,7 +417,7 @@ def find_clusters(protHits,nprot,prots_between,max_alien_prots,min_target_prots,
 			nprots_found_in_cluster = min(cluster_len,len(cluster_structure_found_homologs))
 			if abs(cluster_len-len(cluster_structure_found_homologs)) > cluster_len/2:
 				count_paralogs +=1
-				
+			#	
 			total_prots_in_cluster = len(cluster_structure)
 			alien_prots = total_prots_in_cluster-nprots_found_in_cluster
 			if alien_prots >= max_alien_prots:
@@ -664,7 +677,7 @@ def compareByDP(cluster_i,cluster_j,id_dict, gap, mismatch):
 				elif (BGap > AB) and (BGap > AGap):
 					direction = "BGap"
 					dpMat[i,j] = [BGap,direction]
-		#Trace back and generate alignment. Hacer una funcion que haga el traceback. Tiene que ir a la última posición dpMat[nA,nB] --> mirar la dirección, alinear seqs y ir a la siguiente direcciçon
+		#Trace back and generate alignment.
 		alignmentA = []
 		alignmentB = []
 		i = nA
@@ -891,10 +904,24 @@ def get_itol_len(tree):
 	region_len = sum(max_sizes) + spacer
 	return(region_len,max_sizes,aln_len)
 
-def generate_file_for_itol(tree,res_folder):
+def get_n_random_hex_colors(n):
+    """Generates a list of n random hex color codes."""
+    colors = []
+    for _ in range(n):
+        # Generate a random integer between 0 and 0xFFFFFF (16777215)
+        hex_code = f"#{random.randint(0, 0xFFFFFF):06x}"
+        colors.append(hex_code)
+    return colors
+
+def generate_file_for_itol(tree,res_folder,ncolors,list_of_found_query_genes,dictionary_of_locus_tags_by_query_gene):
+	#get ncolors
+	nhexcolors = get_n_random_hex_colors(ncolors)
+	hexcolor_dict = { lt: nhexcolors[i] for i,lt in enumerate(list_of_found_query_genes) }
+	hex_lt_color_dict = { lt: hexcolor_dict[hprot] for lt,hprot in dictionary_of_locus_tags_by_query_gene.items() }
+	#
 	shapes = {-1:'TL', 0:'RE', 1:'TR'}
 	region_len,max_sizes,aln_len = get_itol_len(tree)
-	print(region_len)
+	#print(region_len)
 	itol_file = os.path.join(res_folder,'iTOLData.txt')
 	with open(itol_file,'w+') as f:
 		f.write("DATASET_DOMAINS\nSEPARATOR COMMA\nDATASET_LABEL, Multiple Cluster Alingment\nCOLOR,#ff0000\nDATA\n")
@@ -914,21 +941,23 @@ def generate_file_for_itol(tree,res_folder):
 						end = start_coord + 49
 						gene_shape = shapes[alignment[i][3]]
 						label = alignment[i][0].split('|')[1]
-						f.write(f',{gene_shape}|{start_coord}|{end}|#cb2c31|')
+						lcolor = hex_lt_color_dict[label] if label in hex_lt_color_dict.keys() else '#808080'
+						f.write(f',{gene_shape}|{start_coord}|{end}|{lcolor}|')
 						start_coord = end + 1
 						end = start_coord + alignment[i][2] - 50
 						gene_shape = shapes[0]
-						f.write(f',{gene_shape}|{start_coord}|{end}|#cb2c31|{label}')
+						f.write(f',{gene_shape}|{start_coord}|{end}|{lcolor}|{label}')
 						start_coord = end + 99	+ correction
 					else:
 						end = start_coord + alignment[i][2] - 50
 						gene_shape = shapes[0]
 						label = alignment[i][0].split('|')[1]
-						f.write(f',{gene_shape}|{start_coord}|{end}|#008080|{label}')
+						lcolor = hex_lt_color_dict[label] if label in hex_lt_color_dict.keys() else '#808080'
+						f.write(f',{gene_shape}|{start_coord}|{end}|{lcolor}|{label}')
 						start_coord = end + 1
 						end = start_coord + 49
 						gene_shape = shapes[alignment[i][3]]
-						f.write(f',{gene_shape}|{start_coord}|{end}|#008080|')	
+						f.write(f',{gene_shape}|{start_coord}|{end}|{lcolor}|')	
 						start_coord = end + 99 + correction
 			f.write(f'\n')
 	pass
@@ -1141,7 +1170,7 @@ if __name__ == "__main__":
 	#
 	################################################################
 	################################################################
-	print('\nStarting the analysis...\n')
+	print('\nStarting the analysis...')
 	#Database for hmm generation: local
 	local_blast_db = args.local_blast_db
 	if not os.path.exists(f'{local_blast_db}.psq') and (local_blast_db != ''):
@@ -1196,6 +1225,7 @@ if __name__ == "__main__":
 			ref_file_basename = os.path.basename(sgenbankFiles[0])
 	else:
 		ref_file_basename = os.path.basename(sgenbankFiles[0])
+	#
 	#Start processing
 	print(f'\nProcessing genomes...')
 	hit_table = pd.DataFrame(columns=['query name','target name', 'id_score','qcover','cluster','cluster_file'])
@@ -1227,8 +1257,9 @@ if __name__ == "__main__":
 		else:
 			max_alien_prots = int(nprot*3)
 		if min_target_prots < nprot:
-			print(f'--> Adjusting minimum target proteins from {min_target_prots} to {nprot/2} (half of the total proteins in the HMM set)...')
-			min_target_prots = max(int(nprot/2),1)
+			if not skip_generate_HMM:
+				print(f'--> Adjusting minimum target proteins from {min_target_prots} to {nprot/2} (half of the total proteins in the HMM set)...')
+				min_target_prots = max(int(nprot/2),1)
 		#search for clusters
 		if len(sgenbankFiles) == 1:
 			print(f'Please use Only Blast method to run with a single genome...')
@@ -1264,8 +1295,9 @@ if __name__ == "__main__":
 		cluster_faa_file = extract_cluster(genbankFile,replicon_id,cstart,cend,res_folder)
 		nprot = len([1 for i in SeqIO.parse(cluster_faa_file,'fasta')])
 		if min_target_prots < nprot:
-			print(f'--> Adjusting minimum target proteins from {min_target_prots} to {nprot/2} (half of the total proteins in the HMM set)...')
-			min_target_prots = max(int(nprot/2),1)
+			if not skip_generate_HMM:
+				print(f'--> Adjusting minimum target proteins from {min_target_prots} to {nprot/2} (half of the total proteins in the HMM set)...')
+				min_target_prots = max(int(nprot/2),1)
 		#define the numbert of protein between consecutive genes
 		if args.prots_between:
 			prots_between = int(args.prots_between)
@@ -1299,6 +1331,7 @@ if __name__ == "__main__":
 	#analyze clusters
 	######
 	print('\n\nAnalyzing clusters...')
+	print(f'Arguments for cluster analysis:\n Number of proteins in the cluster = {nprot}\n Minimum target proteins = {min_target_prots}\n Maximum alien proteins = {max_alien_prots}\n Maximum proteins between = {prots_between}\n Minimum cluster coverage = {min_cluster_coverage}\n')
 	write_to_log(log_file, 'Analyzing clusters...')
 	if len(hit_table) == 0:
 		sys.exit('No homologs were found.')
@@ -1307,6 +1340,9 @@ if __name__ == "__main__":
 	hit_table = hit_table.reset_index(drop=True)
 	#Save table
 	hit_table.to_csv(os.path.join(res_folder, 'hits_in_clusters.csv'))
+	#
+	list_of_found_query_genes = set(hit_table['query name'])
+	dictionary_of_locus_tags_by_query_gene = { row['locus tag']: row['query name'] for _,row in hit_table.iterrows() }
 	#
 	region_files = glob.glob(os.path.join(gb_regions_for_clinker,'*.gb'))
 	#here regions for clinker are read and compared based on the query proteins/cluster. The order and orientation of the genes are taken in account
@@ -1398,8 +1434,10 @@ if __name__ == "__main__":
 		m_cluster_alignment_names = tree2.names
 		put_alignment_in_tree(tree,m_cluster_alignment,m_cluster_alignment_names)
 		print(f'> Generating Multiple cluster alignment ITOL annotation for the cluster distance tree: {os.path.join(res_folder,"iTOLData.txt")}')
-		#	
-		generate_file_for_itol(tree,res_folder)
+		#
+		# list_of_found_query_genes,	dictionary_of_locus_tags_by_query_gene	
+		ncolors = len(list_of_found_query_genes)
+		generate_file_for_itol(tree,res_folder,ncolors,list_of_found_query_genes,dictionary_of_locus_tags_by_query_gene)
 		write_to_log(log_file, f'Generating Multiple cluster alignment ITOL annotation for the cluster distance tree: {os.path.join(res_folder,"iTOLData.txt")}')
 	else:
 		print(f'Only one cluster was found... No tree will be generated...')
