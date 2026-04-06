@@ -11,6 +11,8 @@ BLAST_DBS = ['nr', 'refseq_select_prot', 'refseq_protein', 'SMARTBLAST/landmark'
 import argparse, sys, os, subprocess, re, glob, random
 from datetime import datetime
 from copy import deepcopy
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 
 #Third party modules
 from Bio import SeqIO
@@ -434,7 +436,7 @@ def find_clusters(protHits,nprot,prots_between,max_alien_prots,min_target_prots,
 			validated_clusters_UIDS.append(cluster_structure_UIDS)
 	#
 	if count_discarded > 0:
-		print(f'A total of {count_discarded} clusters were discarded in {sgenbankFile} genome...\n')
+		print(f'--> A total of {count_discarded} clusters were discarded in {sgenbankFile} genome...\n')
 	if count_paralogs > 0:
 		print(f'Warning: {count_paralogs} of the clusters have a high number of duplicated hits and may have been discarded by low coverage...')
 	
@@ -921,6 +923,16 @@ def generate_file_for_itol(tree,res_folder,ncolors,list_of_found_query_genes,dic
 	#get ncolors
 	nhexcolors = get_n_random_hex_colors(ncolors)
 	hexcolor_dict = { lt: nhexcolors[i] for i,lt in enumerate(list_of_found_query_genes) }
+	hexcolor_dict['Alien genes']='#808080' #grey for unknown locus tags
+	#save figure of hexcolors with legend
+	handles = [mpatches.Patch(color=hex_val, label=label) 
+           for label,hex_val in hexcolor_dict.items()]
+	fig, ax = plt.subplots(figsize=(3, 2))
+	ax.legend(handles=handles, loc='center', frameon=False)
+	ax.axis('off')
+	legend_file = os.path.join(res_folder,'itol_legend.svg')
+	plt.savefig(legend_file)
+	#
 	hex_lt_color_dict = { lt: hexcolor_dict[hprot] for lt,hprot in dictionary_of_locus_tags_by_query_gene.items() }
 	#
 	shapes = {-1:'TL', 0:'RE', 1:'TR'}
@@ -1268,7 +1280,7 @@ if __name__ == "__main__":
 		if len(sgenbankFiles) == 1:
 			print(f'Please use Only Blast method to run with a single genome...')
 		for sgenbankFile in sgenbankFiles:
-			print(f'\n-> Processing {sgenbankFile} ...')
+			print(f'> Processing {sgenbankFile} ...')
 			if AnnotatedGenome(sgenbankFile):
 				validated_clusters,validated_clusters_UIDS,sgenbankDict, description,proteomeFile,protHits = scan_cluster_HMMER(HMMs, nprot, prots_between,max_alien_prots, sgenbankFile, res_folder, min_target_prots,min_cluster_coverage,hmm_evalue)
 				if len(validated_clusters) == 0:
@@ -1334,8 +1346,8 @@ if __name__ == "__main__":
 	################################################################
 	#analyze clusters
 	######
-	print('\n\nAnalyzing clusters...')
-	print(f'Arguments for cluster analysis:\n Number of proteins in the cluster = {nprot}\n Minimum target proteins = {min_target_prots}\n Maximum alien proteins = {max_alien_prots}\n Maximum proteins between = {prots_between}\n Minimum cluster coverage = {min_cluster_coverage}\n')
+	print('Analyzing clusters...')
+	print(f'> Arguments for cluster analysis:\n--> Number of proteins in the cluster = {nprot}\n--> Minimum target proteins = {min_target_prots}\n--> Maximum alien proteins = {max_alien_prots}\n--> Maximum proteins between = {prots_between}\n Minimum cluster coverage = {min_cluster_coverage}\n')
 	write_to_log(log_file, 'Analyzing clusters...')
 	if len(hit_table) == 0:
 		sys.exit('No homologs were found.')
