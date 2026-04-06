@@ -554,8 +554,12 @@ def align_target_proteins(qprot, target_for_alignment, proteins,alignments_folde
 			pid = '|'.join(protein.id.split('|')[0:2])
 			if pid in target_for_alignment:
 				to_fasta.append(protein)
+		pcount = len(to_fasta)
 		SeqIO.write(to_fasta,proteins_file,'fasta')
-		os.system(f'mafft --quiet --localpair --maxiterate 1000 {proteins_file} > {alignment_file}')
+		if pcount <= 100:
+			os.system(f'mafft --quiet --localpair --maxiterate 1000 {proteins_file} > {alignment_file}')
+		else:
+			os.system(f'mafft --quiet {proteins_file} > {alignment_file}')
 	return(alignment_file)
 
 def get_id_dict_from_msa(qprot_alignment):
