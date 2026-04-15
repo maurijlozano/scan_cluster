@@ -82,7 +82,7 @@ if __name__ == "__main__":
             newname = gdict[name]
         lname = re.sub('[:;\\/]',' ',f'{newname}__{rep}__{coords}')
         leaf.name = lname
-        print(f'Renaming {leaf.name} to {lname}')
+        print(f'Renaming {name} to {lname}')
     #
     ntreefile = os.path.splitext(tree_file)[0]+'_rn.nhx'
     Phylo.write(tree,ntreefile,'nexus')

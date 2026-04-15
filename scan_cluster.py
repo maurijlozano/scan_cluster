@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 #requirements Blast >2.13
 NAME = "Scan cluster"
-VERSION = "1.0"
+VERSION = "1.1"
 REF = "\n   Not published"
 GITHUB="https://github.com/maurijlozano"
+ZENODO="https://doi.org/10.5281/zenodo.15195352"
 BLAST_DBS = ['nr', 'refseq_select_prot', 'refseq_protein', 'SMARTBLAST/landmark', 'swissprot', 'pataa', 'pdb', 'env_nr', 'tsa_nr', 'nr_cluster_seq']
 
 #Imports
@@ -33,17 +34,18 @@ def parseArgs():
 	inputArgs.add_argument("-s", "--cluster_start",help="Genome cluster start location.", dest="cstart", action='store', required=False)
 	inputArgs.add_argument("-e", "--cluster_end",help="Genome cluster end location.", dest="cend", action='store', required=False)
 	#add cluster_gb_file --> gb file containing only the cluster region
-	gbCluster = parser.add_argument_group('To search or a cluster provided in Genbank format')
+	gbCluster = parser.add_argument_group('To search for a cluster provided in Genbank format')
 	gbCluster.add_argument("-q", "--QueryCluster",help="Query cluster in Genbank format.", dest="qcluster", action='store', required=False)
 	gbCluster.add_argument("--Reference",help="Specifies the genome Gb file to be used as reference.", dest="refgenome", action='store', required=False)
-	hmmCluster = parser.add_argument_group('To search or a cluster with a defined set of protein HMMs')
+	#query hmm cluster
+	hmmCluster = parser.add_argument_group('To search for a cluster with a defined set of protein HMMs')
 	hmmCluster.add_argument("-f", "--hmm_folder",help="Folder containing the HMM profiles for the proteins to include in the cluster.", dest="hmm_folder", action='store')
-	#Subject genome
+	#Subject genomes
 	targetinput = parser.add_argument_group('Target Genomes')
 	targetinput.add_argument("-S", "--SubjectFile",help="Subject genome in Genbank format.", dest="sfile", action='store', required=False)
 	targetinput.add_argument("-F", "--SubjectFolder",help="Folder containing the subject genomes in Genbank format.", dest="sfolder", action='store', required=False)
 	targetinput.add_argument("-E", "--Genbank file extension",help="Genbank file extension. Default   .gb  ", dest="gbext", action='store', required=False, default='gb')
-	#hmm folder
+	#output folder
 	outopt = parser.add_argument_group('Output Folder')
 	outopt.add_argument("-o", "--Results_folder",help="Results folder name.", dest="res_folder", action='store', default = 'Results')
 	outopt.add_argument("--overwrite", help="Overwrite previous results.", dest="overwrite", action='store_true')
@@ -60,7 +62,7 @@ def parseArgs():
 	clusterOPts.add_argument("--mismatch_score",help="Mismatch score for cluster alignment. Alignment of genes that are not orthologs are penalized. Default = 20", dest="mismatch", action='store', default=20)
 	#Optional arguments for blast and HMM
 	searchOpt = parser.add_argument_group('Blast and HMMSearch options')
-	searchOpt.add_argument("--local_blast_db",help="A local blastp database generated with makeblastdb program... <Folder name>", dest="local_blast_db", action='store', default='')
+	searchOpt.add_argument("--local_blast_db",help="A local blastp database generated with makeblastdb program... <Folder name/database name> example: /home/user/blast_db/nr", dest="local_blast_db", action='store', default='')
 	searchOpt.add_argument("--Generate_local_db",help="A local blastp database will be generated from the proteome of all the analyzed subject sequences...", dest="local_blast_db_subject", action='store_true')
 	searchOpt.add_argument("--Blast_DB",help="Database for remote blastp, used to retrieve homologs for HMM generation. Default = refseq_protein. Available: nr, refseq_select, refseq_protein, landmark, swissprot, pataa, pdb, env_nr, tsa_nr", dest="blastp_database", action='store', default='refseq_protein')
 	#
@@ -73,13 +75,13 @@ def parseArgs():
 	searchOpt.add_argument("--hmm_evalue",help="E-value cut-off for hmmsearch. Default = 0.00001", dest="hmm_evalue", action='store', default=0.00001)
 	searchOpt.add_argument("--hmm_cover",help="HMM coverage cut-off for hmmsearch. Default = 45", dest="hmm_cover", action='store', default=45)	
 	searchOpt.add_argument("--ali_cover",help="Alignment coverage cut-off for hmmsearch. Default = 45", dest="ali_cover", action='store', default=45)
-	searchOpt.add_argument("--use_most_Similar",help="Use the 100 the first 100 hits to build the HMM. Otherwise (default) a diverse selection of hits will be used.. Default = True", dest="use_most_Similar", action='store_true')
+	searchOpt.add_argument("--use_most_Similar",help="Use the 100 the first 100 hits to build the HMM (Recommended when there are many paralogs of the proteins in the cluster). Otherwise (default) a diverse selection of hits will be used... ", dest="use_most_Similar", action='store_true')
 	#
 	args = parser.parse_args()
 	return args
 
 def printSoftName():
-	print("\n\n\n")
+	print("\n\n")
 	print("   ************************************************")
 	print("   *****   Scan cluster ")
 	print("   *****   Version: "+str(VERSION))
@@ -88,7 +90,7 @@ def printSoftName():
 	print("   ************************************************")
 	print("   Please cite: "+REF)
 	print("   Downloaded from: "+GITHUB)
-	print("\n\n\n")
+	print("\n")
 	now = datetime.now()
 	dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
 	return(f'Date and time: {dt_string}')
@@ -163,7 +165,7 @@ def extractProteome(genbankDict,sres_folder,sgenome_name):
 			for key,value in genbankDict.items():
 				for k,val in genbankDict[key].items():
 					f.write(">"+key+"|"+val[6]+"|"+val[0]+"\n"+str(val[2])+"\n")
-	
+	#
 	return(proteomeFile)
 
 #Search cheA hmm in proteome
@@ -180,15 +182,30 @@ def hmmsearchProtein(proteomeFile,hmm_file,sres_folder,hmm_evalue):
 	if len(hmmHits) > 0:
 		renameDict = { old:new for old,new in zip(hmmHits.columns[0:len(tableHeaders)],tableHeaders)}
 		hmmHits = hmmHits.rename(columns=renameDict)
+		#new 2026, v1.1 #if a hit gets splitted in discontinuous parts, join in a single hit with start=min start and end= max end
+		hmmHits = hmmHits.sort_values(['target name', 'query name', 'hmm from'])
+		hmmHits['prev_hmm_from'] = hmmHits.groupby(['target name', 'query name'])['hmm from'].shift(1)
+		hmmHits['prev_hmm_to'] = hmmHits.groupby(['target name', 'query name'])['hmm to'].shift(1)
+		hmmHits['to expand'] = hmmHits['hmm from'] > hmmHits['prev_hmm_to'] - 20
+		hmmHits['fragment_group'] = (~hmmHits['to expand']).cumsum()
+		agg_rules = {'tlen':'first', 'qaccession':'first', 'qlen': 'first', 'E-value':'min', 'score':'max', 'bias':'first', 
+						'#':'first', 'of':'first', 'c-Evalue':'min', 'i-Evalue':'min','dom score':'max', 'dom  bias':'first', 
+						'hmm from':'min', 'hmm to':'max', 'ali from':'min', 'ali to':'max','env from':'min', 'env to':'max', 
+						'acc':'max', 
+					}
+		hmmHits = hmmHits.groupby(['target name', 'query name', 'fragment_group']).agg(agg_rules).reset_index()
+		#
+		hmmHits.loc[:,'hmm cover'] = [(row['hmm to']-row['hmm from'])/row['qlen'] for _,row in hmmHits.iterrows()]
+		hmmHits.loc[:,'ali cover'] = [(row['ali to']-row['ali from'])/row['tlen'] for _,row in hmmHits.iterrows()]
+		hmmHits = hmmHits[hmmHits['hmm cover'] >= hmm_cover]
+		hmmHits = hmmHits[hmmHits['ali cover'] >= ali_cover]
 		#old vers
 		#hmmHits = pd.read_table(resFile, names=tableHeaders, comment='#', sep='\\s+').sort_values(["target name","E-value"])
-		hmmHits = hmmHits.sort_values("E-value")
-		hmmHitsPerGene = hmmHits.groupby(['target name'], as_index=False, ).first().sort_values("E-value")
+		#change sort to score
+		hmmHits = hmmHits.sort_values("score", ascending=False)
+		hmmHitsPerGene = hmmHits.groupby(['target name'], as_index=False, ).first().sort_values("score", ascending=False)
+		#filter by E-value
 		hmmHitsPerGene = hmmHitsPerGene[hmmHitsPerGene['E-value'] < hmm_evalue]
-		hmmHitsPerGene['hmm cover'] = [(row['hmm to']-row['hmm from'])/row['qlen'] for _,row in hmmHitsPerGene.iterrows()]
-		hmmHitsPerGene['ali cover'] = [(row['ali to']-row['ali from'])/row['tlen'] for _,row in hmmHitsPerGene.iterrows()]
-		hmmHitsPerGene = hmmHitsPerGene[hmmHitsPerGene['hmm cover'] >= hmm_cover]
-		hmmHitsPerGene = hmmHitsPerGene[hmmHitsPerGene['ali cover'] >= ali_cover]
 		hmmHitsPerGene = hmmHitsPerGene.reset_index(drop=True)
 		return(hmmHitsPerGene)
 	else:
@@ -304,12 +321,12 @@ def generate_HMM(query_cluster_faa,evalue,blastp_database,qcov,scov,res_folder,l
 		#read blast resutls
 		blast_fields = ['qseqid', 'sseqid', 'pident', 'length', 'qstart', 'qend', 'qlen', 'sstart', 'send', 'slen', 'evalue', 'bitscore', 'sseq']
 		blast_tabl = pd.read_table(blast_out, names = blast_fields)
-		blast_tabl['qcov'] = [ (row['qend']-row['qstart'])/row['qlen'] for _,row in blast_tabl.iterrows()]
-		blast_tabl['scov'] = [ (row['send']-row['sstart'])/row['slen'] for _,row in blast_tabl.iterrows()]
+		blast_tabl.loc[:,'qcov'] = [ (row['qend']-row['qstart'])/row['qlen'] for _,row in blast_tabl.iterrows()]
+		blast_tabl.loc[:,'scov'] = [ (row['send']-row['sstart'])/row['slen'] for _,row in blast_tabl.iterrows()]
 		blast_tabl = blast_tabl[(blast_tabl['qcov'] >= qcov ) & (blast_tabl['scov'] >= scov )]
 		#read blast results for each protein
 		if not use_most_Similar:
-			blast_tabl.sort_values(['pident'])
+			blast_tabl = blast_tabl.sort_values(['pident'])
 			if len(blast_tabl) > 100:
 				pick_one_every = len(blast_tabl)//100
 				indices_to_pick = [ i for i in range(0,len(blast_tabl),pick_one_every) ][0:100]
@@ -324,9 +341,9 @@ def generate_HMM(query_cluster_faa,evalue,blastp_database,qcov,scov,res_folder,l
 		blast_fasta_aln = os.path.join(res_folder,f'blast_{ltag}_aln.fasta')
 		with open(blast_fasta,'w') as fasta:
 			for _,row in subtable_pick100.iterrows():
-				fasta.write(f">{row['sseqid']}\n{row['sseq']}\n")
+				fasta.write(f">{row['sseqid']}\n{row['sseq'].replace('-','')}\n")
 			if len(subtable_pick100) == 1:
-				fasta.write(f">{row['sseqid']}\n{row['sseq']}\n")
+				fasta.write(f">{row['sseqid']}\n{row['sseq'].replace('-','')}\n")
 				write_to_log(log_file,f'Only one hit for {protein.id}...')
 				print(f'--> Only one hit for {protein.id}...')
 			elif len(subtable_pick100) == 0:
@@ -436,7 +453,10 @@ def find_clusters(protHits,nprot,prots_between,max_alien_prots,min_target_prots,
 			validated_clusters_UIDS.append(cluster_structure_UIDS)
 	#
 	if count_discarded > 0:
-		print(f'--> A total of {count_discarded} clusters were discarded in {sgenbankFile} genome...\n')
+		if count_discarded == 1:
+			print(f'--> 1 cluster was discarded in {sgenbankFile} genome...')
+		else:
+			print(f'--> {count_discarded} clusters were discarded in {sgenbankFile} genome...')
 	if count_paralogs > 0:
 		print(f'Warning: {count_paralogs} of the clusters have a high number of duplicated hits and may have been discarded by low coverage...')
 	
@@ -503,11 +523,24 @@ def scan_cluster_Blastp(cluster_faa_file, nprot, prots_between,max_alien_prots, 
 		#read blast resutls
 		blast_fields = ['query name', 'target name', 'pident', 'length', 'qstart', 'qend', 'qlen', 'sstart', 'send', 'slen', 'evalue', 'bitscore', 'sseq']
 		blast_tabl = pd.read_table(blast_out, names = blast_fields)
-		blast_tabl['qcov'] = [ (row['qend']-row['qstart'])/row['qlen'] for _,row in blast_tabl.iterrows()]
-		blast_tabl['scov'] = [ (row['send']-row['sstart'])/row['slen'] for _,row in blast_tabl.iterrows()]
+		#new 2026, v1.1 #if a hit gets splitted in discontinuous parts, join in a single hit with start=min start and end= max end
+		blast_tabl = blast_tabl.sort_values(['target name', 'query name', 'qstart'])
+		blast_tabl['prev_qstart'] = blast_tabl.groupby(['target name', 'query name'])['qstart'].shift(1)
+		blast_tabl['prev_qend'] = blast_tabl.groupby(['target name', 'query name'])['qend'].shift(1)
+		blast_tabl['to expand'] = blast_tabl['qstart'] > blast_tabl['prev_qend'] - 20
+		blast_tabl['fragment_group'] = (~blast_tabl['to expand']).cumsum()
+		agg_rules = {'pident':'first', 'length':'first', 'qstart':'min', 'qend':'max', 'qlen': 'first',
+						'sstart':'min', 'send':'max', 'slen':'first', 
+						'evalue':'min', 'bitscore':'max', 'sseq':'first', 
+					}
+		blast_tabl = blast_tabl.groupby(['target name', 'query name', 'fragment_group']).agg(agg_rules).reset_index()
+		#
+		blast_tabl.loc[:,'qcov'] = [ (row['qend']-row['qstart'])/row['qlen'] for _,row in blast_tabl.iterrows()]
+		blast_tabl.loc[:,'scov'] = [ (row['send']-row['sstart'])/row['slen'] for _,row in blast_tabl.iterrows()]
 		blast_tabl = blast_tabl[(blast_tabl['qcov'] >= qcov ) & (blast_tabl['scov'] >= scov )]
 		#read blast results for each protein
-		blast_tabl.sort_values(['evalue'])
+		blast_tabl = blast_tabl.sort_values("bitscore", ascending=False)
+		blast_tabl = blast_tabl.groupby(['target name'], as_index=False).first().sort_values("bitscore", ascending=False)
 		#validate clusters
 		validated_clusters,validated_clusters_UIDS,blast_tabl = find_clusters(blast_tabl,nprot,prots_between,max_alien_prots,min_target_prots,min_cluster_coverage)
 		return(validated_clusters,validated_clusters_UIDS,sgenbankDict, description,proteomeFile,blast_tabl)
@@ -629,8 +662,8 @@ def get_alien_proteins_id_scores(cluster_dict, proteins, alignments_folder,evalu
 			target_for_alignment = list(blast_tabl[blast_tabl['qseqid'] == aprot]['sseqid'])
 			target_for_alignment.append(aprot)
 			processed = processed.union(set(target_for_alignment))
-			alien_aignment_file = align_target_proteins(aprot, target_for_alignment, proteins,alignments_folder)
-			id_dict.update(get_id_dict_from_msa(alien_aignment_file))
+			alien_alignment_file = align_target_proteins(aprot, target_for_alignment, proteins,alignments_folder)
+			id_dict.update(get_id_dict_from_msa(alien_alignment_file))
 	return(id_dict)
 
 #DP alignment
@@ -986,7 +1019,7 @@ def printClusters(reoriented_cluster_dict,clusterFile):
 
 def printValClusters(all_validated_clusters,clusterFile):
 	with open(clusterFile,'w') as cf:
-		cf.write('Genome File\tCluster')
+		cf.write('Genome File\tCluster\n')
 		for gf,cs in all_validated_clusters.items():
 			for c in cs:
 				clusterText = " ".join( [ g for g in c ] )
@@ -1056,7 +1089,6 @@ if __name__ == "__main__":
 		res_folder = args.res_folder
 	else:
 		res_folder = 'Results'
-	print(f'The results will be saved in {res_folder} folder...')
 	if not os.path.exists(res_folder):
 		os.mkdir(res_folder)
 	elif os.path.exists(res_folder) and args.overwrite:
@@ -1064,8 +1096,8 @@ if __name__ == "__main__":
 	else:
 		res_folder = f'{res_folder}-{formated_time}'
 		os.mkdir(res_folder)
+	print(f'The results will be saved in {res_folder} folder...')
 	#
-	print()
 	#log file
 	log_file = os.path.join(res_folder,'log.txt')
 	log = open(log_file, 'w')
@@ -1225,6 +1257,7 @@ if __name__ == "__main__":
 		ref_file_basename = os.path.basename(genbankFile) 
 		if not ref_file_basename in subject_file_basenames:
 			subject_file_basenames.append(genbankFile)
+		print(f'-> Using {genbankFile} as reference genome...')
 	elif args.qcluster and args.refgenome:
 		ref_file_basename = os.path.basename(args.refgenome)
 		if os.path.exists(args.refgenome):
@@ -1272,11 +1305,12 @@ if __name__ == "__main__":
 			max_alien_prots = int(args.max_alien_prots)
 		else:
 			max_alien_prots = int(nprot*3)
-		if min_target_prots < nprot:
+		if min_target_prots > nprot:
 			if not skip_generate_HMM:
 				print(f'--> Adjusting minimum target proteins from {min_target_prots} to {nprot/2} (half of the total proteins in the HMM set)...')
 				min_target_prots = max(int(nprot/2),1)
 		#search for clusters
+		print('\nSearching for clsuters...')
 		if len(sgenbankFiles) == 1:
 			print(f'Please use Only Blast method to run with a single genome...')
 		for sgenbankFile in sgenbankFiles:
@@ -1310,7 +1344,7 @@ if __name__ == "__main__":
 	else:
 		cluster_faa_file = extract_cluster(genbankFile,replicon_id,cstart,cend,res_folder)
 		nprot = len([1 for i in SeqIO.parse(cluster_faa_file,'fasta')])
-		if min_target_prots < nprot:
+		if min_target_prots > nprot:
 			if not skip_generate_HMM:
 				print(f'--> Adjusting minimum target proteins from {min_target_prots} to {nprot/2} (half of the total proteins in the HMM set)...')
 				min_target_prots = max(int(nprot/2),1)
@@ -1346,7 +1380,7 @@ if __name__ == "__main__":
 	################################################################
 	#analyze clusters
 	######
-	print('Analyzing clusters...')
+	print('\nAnalyzing clusters...')
 	print(f'> Arguments for cluster analysis:\n--> Number of proteins in the cluster = {nprot}\n--> Minimum target proteins = {min_target_prots}\n--> Maximum alien proteins = {max_alien_prots}\n--> Maximum proteins between = {prots_between}\n Minimum cluster coverage = {min_cluster_coverage}\n')
 	write_to_log(log_file, 'Analyzing clusters...')
 	if len(hit_table) == 0:
@@ -1373,7 +1407,22 @@ if __name__ == "__main__":
 	if os.path.exists(proteins):
 		os.remove(proteins)
 	#generate cluster dict
-	ref_region = [rf if os.path.splitext(ref_file_basename)[0] in rf else region_files[0] for rf in region_files ][0]
+	ref_clusters = [rf for rf in region_files if os.path.splitext(ref_file_basename)[0] in rf]
+	if len(ref_clusters) == 1:
+		ref_region = ref_clusters[0]
+	elif len(ref_clusters) > 1:
+		#get largest cluster as reference
+		ref_region = ref_clusters[0]
+		maxlen = 0
+		for cl in ref_clusters:
+			cls,cle = cl.split('__')[2].split('.')[0].split('-')
+			cl_len = abs(int(cle) - int(cls))
+			if cl_len > maxlen:
+				maxlen = cl_len
+				ref_region = cl
+	else:
+		ref_region = region_files[0]
+	print(ref_file_basename, region_files)
 	print(f'> The selected reference cluster was : {ref_region}')
 	#get reference cluster
 	ref_cluster = get_oriented_cluster_with_score(ref_region, hit_table,proteins)
