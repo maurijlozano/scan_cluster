@@ -31,9 +31,11 @@ usage: scan_cluster.py [-h] [-Q QFILE] [-R REPID] [-s CSTART] [-e CEND]
                        [--mismatch_score MISMATCH]
                        [--local_blast_db LOCAL_BLAST_DB] [--Generate_local_db]
                        [--Blast_DB BLASTP_DATABASE] [--Blast_evalue EVALUE]
-                       [--Blast_max_targets MAX_TARGET] [--Blast_qcov QCOV]
-                       [--Blast_scov SCOV] [--hmm_evalue HMM_EVALUE]
-                       [--hmm_cover HMM_COVER]
+                       [--Blast_max_targets MAX_TARGET]
+                       [--Only_Blast_max_targets MAX_TARGET_ONLY_BLAST_MODE]
+                       [--Blast_qcov QCOV] [--Blast_scov SCOV]
+                       [--hmm_evalue HMM_EVALUE] [--hmm_cover HMM_COVER]
+                       [--ali_cover ALI_COVER] [--use_most_Similar]
 
 This program was designed to identify orthologous genes clusters.
 
@@ -41,37 +43,37 @@ options:
   -h, --help            show this help message and exit
 
 Query cluster:
-  -Q QFILE, --QueryFile QFILE
+  -Q, --QueryFile QFILE
                         Query genome in Genbank format.
-  -R REPID, --Replicon_ID REPID
+  -R, --Replicon_ID REPID
                         Required for draft and multireplicon genomes.
-  -s CSTART, --cluster_start CSTART
+  -s, --cluster_start CSTART
                         Genome cluster start location.
-  -e CEND, --cluster_end CEND
+  -e, --cluster_end CEND
                         Genome cluster end location.
 
-To search or a cluster provided in Genbank format:
-  -q QCLUSTER, --QueryCluster QCLUSTER
+To search for a cluster provided in Genbank format:
+  -q, --QueryCluster QCLUSTER
                         Query cluster in Genbank format.
   --Reference REFGENOME
                         Specifies the genome Gb file to be used as reference.
 
-To search or a cluster with a defined set of protein HMMs:
-  -f HMM_FOLDER, --hmm_folder HMM_FOLDER
+To search for a cluster with a defined set of protein HMMs:
+  -f, --hmm_folder HMM_FOLDER
                         Folder containing the HMM profiles for the proteins to
                         include in the cluster.
 
 Target Genomes:
-  -S SFILE, --SubjectFile SFILE
+  -S, --SubjectFile SFILE
                         Subject genome in Genbank format.
-  -F SFOLDER, --SubjectFolder SFOLDER
+  -F, --SubjectFolder SFOLDER
                         Folder containing the subject genomes in Genbank
                         format.
-  -E GBEXT, --Genbank file extension GBEXT
+  -E, --Genbank file extension GBEXT
                         Genbank file extension. Default .gb
 
 Output Folder:
-  -o RES_FOLDER, --Results_folder RES_FOLDER
+  -o, --Results_folder RES_FOLDER
                         Results folder name.
   --overwrite           Overwrite previous results.
 
@@ -80,15 +82,15 @@ Running mode:
                         homolog proteins.
 
 Cluster definition arguments:
-  -n PROTS_BETWEEN, --n_prots_between PROTS_BETWEEN
+  -n, --n_prots_between PROTS_BETWEEN
                         Maximum number of proteins allowed between two
                         consecutive genes in the query cluster. Default = half
                         of proteins in the cluster
-  -M MAX_ALIEN_PROTS, --max_alien_prots MAX_ALIEN_PROTS
+  -M, --max_alien_prots MAX_ALIEN_PROTS
                         Maximum number of proteins in the target cluster that
-                        are not present in the query cluster. Default = not
-                        limited (Number of proteins in cluster * 3).
-  -m MIN_TARGET_PROTS, --min_target_prots MIN_TARGET_PROTS
+                        are not present in the query cluster. Default = Number
+                        of proteins in cluster * 3.
+  -m, --min_target_prots MIN_TARGET_PROTS
                         Minimum of query proteins required to be found in
                         target cluster. Default=3.)
   --min_cluster_coverage MIN_CLUSTER_COVERAGE
@@ -97,7 +99,7 @@ Cluster definition arguments:
                         proteins. If you are running only with HMMs, this
                         value should be the fraction of the HMM required in a
                         cluster.)
-  -g GAP, --gap_penalty GAP
+  -g, --gap_penalty GAP
                         Gap penalty for cluster alignment. Default = 10
   --mismatch_score MISMATCH
                         Mismatch score for cluster alignment. Alignment of
@@ -107,26 +109,37 @@ Cluster definition arguments:
 Blast and HMMSearch options:
   --local_blast_db LOCAL_BLAST_DB
                         A local blastp database generated with makeblastdb
-                        program... <Folder name>
+                        program... <Folder name/database name> example:
+                        /home/user/blast_db/nr
   --Generate_local_db   A local blastp database will be generated from the
                         proteome of all the analyzed subject sequences...
   --Blast_DB BLASTP_DATABASE
                         Database for remote blastp, used to retrieve homologs
-                        for HMM generation. Default=nr Available: nr,
-                        refseq_select, refseq_protein, landmark, swissprot,
-                        pataa, pdb, env_nr, tsa_nr
+                        for HMM generation. Default = refseq_protein.
+                        Available: nr, refseq_select, refseq_protein,
+                        landmark, swissprot, pataa, pdb, env_nr, tsa_nr
   --Blast_evalue EVALUE
                         E-value cut-off for remote blastp, used to retrieve
                         homologs for HMM generation.
   --Blast_max_targets MAX_TARGET
-                        Maxímum number of targets for Blastp search.
-                        Default=250
+                        Maxímum number of targets for Blastp search. These
+                        results will be used to build HMMs for each protein in
+                        the cluster. Default=250
+  --Only_Blast_max_targets MAX_TARGET_ONLY_BLAST_MODE
+                        Maxímum number of targets for Blastp search in the
+                        only blast mode. Default=100
   --Blast_qcov QCOV     Query coverage percent for Blastp search. Default=45
   --Blast_scov SCOV     Subject coverage percent for Blastp search. Default=45
   --hmm_evalue HMM_EVALUE
                         E-value cut-off for hmmsearch. Default = 0.00001
   --hmm_cover HMM_COVER
                         HMM coverage cut-off for hmmsearch. Default = 45
+  --ali_cover ALI_COVER
+                        Alignment coverage cut-off for hmmsearch. Default = 45
+  --use_most_Similar    Use the 100 the first 100 hits to build the HMM
+                        (Recommended when there are many paralogs of the
+                        proteins in the cluster). Otherwise (default) a
+                        diverse selection of hits will be used...
 
 ```
 
