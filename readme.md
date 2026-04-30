@@ -1,5 +1,6 @@
 # Scan Cluster
 ![logo](logo.png)<br><br>
+## A versatile database-independent prediction tool for multi-genome identification of homologous gene clusters.
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/maurijlozano/scan_cluster/blob/main/scan_cluster.ipynb) <br>
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15195352.svg)](https://doi.org/10.5281/zenodo.15195352) <br>
 
