@@ -1,7 +1,7 @@
 # Scan Cluster
-![logo](logo.png)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/maurijlozano/scan_cluster/blob/main/scan_cluster.ipynb)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15195352.svg)](https://doi.org/10.5281/zenodo.15195352)
+![logo](logo.png)<br><br>
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/maurijlozano/scan_cluster/blob/main/scan_cluster.ipynb) <br>
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15195352.svg)](https://doi.org/10.5281/zenodo.15195352) <br>
 
 Authors: Ezequiel G. Mogro, Abril L. Pagnutti, Gonzalo Zapata, and Mauricio J. Lozano
 Instituto de Biotecnología y Biología Molecular (IBBM), CONICET, CCT-La Plata, Universidad Nacional de La Plata (UNLP), Argentina.
