@@ -2,8 +2,8 @@
 ![logo](logo.png)<br><br>
 ## A versatile database-independent prediction tool for multi-genome identification of homologous gene clusters.
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/maurijlozano/scan_cluster/blob/main/scan_cluster.ipynb) <br>
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15195352.svg)](https://doi.org/10.5281/zenodo.15195352) <br>
-
+[![Zenodo_DOI](https://img.shields.io/badge/Zenodo_DOI-10.5281/zenodo.15195352-blue)](https://doi.org/10.5281/zenodo.15195352) <br>
+[![bioRxiv DOI](https://img.shields.io/badge/bioRxiv_DOI-10.64898/2026.04.29.721675-red)](https://doi.org/10.64898/2026.04.29.721675)<br>
 Authors: Ezequiel G. Mogro, Abril L. Pagnutti, Gonzalo Zapata, and Mauricio J. Lozano
 Instituto de Biotecnología y Biología Molecular (IBBM), CONICET, CCT-La Plata, Universidad Nacional de La Plata (UNLP), Argentina.
 
