@@ -54,7 +54,7 @@ def parseArgs():
 	runmode.add_argument("--only_blastp",help="Runs using only blast for the identification of homolog proteins.", dest="only_blastp", action='store_true', required=False)
 	#add maximum number of genes not belonging to cluster to end cluster definition
 	clusterOPts = parser.add_argument_group('Cluster definition arguments')
-	clusterOPts.add_argument("-n", "--n_prots_between",help="Maximum number of proteins allowed between two consecutive genes in the query cluster. Default = half of proteins in the cluster", dest="prots_between", action='store')
+	clusterOPts.add_argument("-n", "--n_between",help="Maximum number of proteins allowed between two consecutive genes in the query cluster. Default = half of proteins in the cluster", dest="between", action='store')
 	clusterOPts.add_argument("-M", "--max_alien_prots",help="Maximum number of proteins in the target cluster that are not present in the query cluster. Default = Number of proteins in cluster * 3.", dest="max_alien_prots", action='store')
 	clusterOPts.add_argument('-m', "--min_target_prots",help="Minimum of query proteins required to be found in target cluster. Default=3.)", dest="min_target_prots", action='store', default=3)
 	clusterOPts.add_argument("--min_cluster_coverage",help="Minimum of cluster coverage, proportion. Default=.5. The program will use as minimum half of the query proteins. If you are running only with HMMs, this value should be the fraction of the HMM required in a cluster.)", dest="min_cluster_coverage", action='store', default=0.5)
@@ -405,7 +405,7 @@ def find_clusters(protHits,nprot,prots_between,max_alien_prots,min_target_prots,
 			if i == 0:
 				prots_in_cluster.append(prot_numbers[i])
 			else:
-				if prot_numbers[i]-prot_numbers[i-1] <= prots_between:
+				if prot_numbers[i]-prot_numbers[i-1] <= prots_between+1:
 					prots_in_cluster.append(prot_numbers[i])
 				else:
 					clusters.append(prots_in_cluster)
