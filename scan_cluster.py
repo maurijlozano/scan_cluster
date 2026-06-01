@@ -1310,7 +1310,7 @@ if __name__ == "__main__":
 				print(f'--> Adjusting minimum target proteins from {min_target_prots} to {nprot/2} (half of the total proteins in the HMM set)...')
 				min_target_prots = max(int(nprot/2),1)
 		#search for clusters
-		print('\nSearching for clsuters...')
+		print('\nSearching for clusters...')
 		if len(sgenbankFiles) == 1:
 			print(f'Please use Only Blast method to run with a single genome...')
 		for sgenbankFile in sgenbankFiles:
