@@ -1422,7 +1422,7 @@ if __name__ == "__main__":
 				ref_region = cl
 	else:
 		ref_region = region_files[0]
-	print(ref_file_basename, region_files)
+	#print(ref_file_basename, region_files)
 	print(f'> The selected reference cluster was : {ref_region}')
 	#get reference cluster
 	ref_cluster = get_oriented_cluster_with_score(ref_region, hit_table,proteins)
