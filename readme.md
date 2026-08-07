@@ -42,7 +42,7 @@ usage: scan_cluster.py [-h] [-Q QFILE] [-R REPID] [-s CSTART] [-e CEND]
                        [--hmm_evalue HMM_EVALUE] [--hmm_cover HMM_COVER]
                        [--ali_cover ALI_COVER] [--use_most_Similar]
 
-This program was designed to identify orthologous genes clusters.
+This program was designed to identify homologous genes clusters.
 
 options:
   -h, --help            show this help message and exit
@@ -108,7 +108,7 @@ Cluster definition arguments:
                         Gap penalty for cluster alignment. Default = 10
   --mismatch_score MISMATCH
                         Mismatch score for cluster alignment. Alignment of
-                        genes that are not orthologs are penalized. Default =
+                        genes that are not homologous are penalized. Default =
                         20
 
 Blast and HMMSearch options:
