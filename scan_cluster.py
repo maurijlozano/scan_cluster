@@ -460,11 +460,11 @@ def find_clusters(protHits,nprot,prots_between,max_alien_prots,min_target_prots,
 	if count_paralogs > 0:
 		print(f'Warning: {count_paralogs} of the clusters have a high number of duplicated hits and may have been discarded by low coverage...')
 	
-	protHits.loc[:,'cluster'] = ''
+	protHits.loc[:,'cluster'] = -1
 	for i,c in enumerate(validated_clusters_UIDS):
 		protHits.loc[:,'cluster'] = [ i if row['target name'].split('|')[1] in c else row['cluster'] for _,row in protHits.iterrows() ]
 	#
-	protHits = protHits[protHits['cluster'] != '']
+	protHits = protHits[protHits['cluster'] != -1]
 	return(validated_clusters,validated_clusters_UIDS,protHits)
 
 def scan_cluster_HMMER(HMMs, nprot, prots_between,max_alien_prots, sgenbankFile, res_folder, min_target_prots,min_cluster_coverage,hmm_evalue):
