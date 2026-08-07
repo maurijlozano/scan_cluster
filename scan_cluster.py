@@ -26,7 +26,7 @@ def parseArgs():
 	'''
 	Argument parsing is done.
 	'''
-	parser = argparse.ArgumentParser(description='This program was designed to identify orthologous genes clusters.')
+	parser = argparse.ArgumentParser(description='This program was designed to identify homologous genes clusters.')
 	inputArgs = parser.add_argument_group('Query cluster')#Genome with the query cluster, gb file
 	inputArgs.add_argument("-Q", "--QueryFile",help="Query genome in Genbank format.", dest="qfile", action='store', required=False)
 	inputArgs.add_argument("-R", "--Replicon_ID",help="Required for draft and multireplicon genomes.", dest="repid", action='store', required=False)
@@ -59,7 +59,7 @@ def parseArgs():
 	clusterOPts.add_argument('-m', "--min_target_prots",help="Minimum of query proteins required to be found in target cluster. Default=3.)", dest="min_target_prots", action='store', default=3)
 	clusterOPts.add_argument("--min_cluster_coverage",help="Minimum of cluster coverage, proportion. Default=.5. The program will use as minimum half of the query proteins. If you are running only with HMMs, this value should be the fraction of the HMM required in a cluster.)", dest="min_cluster_coverage", action='store', default=0.5)
 	clusterOPts.add_argument('-g', "--gap_penalty",help="Gap penalty for cluster alignment. Default = 10", dest="gap", action='store', default=10)
-	clusterOPts.add_argument("--mismatch_score",help="Mismatch score for cluster alignment. Alignment of genes that are not orthologs are penalized. Default = 20", dest="mismatch", action='store', default=20)
+	clusterOPts.add_argument("--mismatch_score",help="Mismatch score for cluster alignment. Alignment of genes that are not homologous are penalized. Default = 20", dest="mismatch", action='store', default=20)
 	#Optional arguments for blast and HMM
 	searchOpt = parser.add_argument_group('Blast and HMMSearch options')
 	searchOpt.add_argument("--local_blast_db",help="A local blastp database generated with makeblastdb program... <Folder name/database name> example: /home/user/blast_db/nr", dest="local_blast_db", action='store', default='')
@@ -576,12 +576,12 @@ def align_target_proteins(qprot, target_for_alignment, proteins,alignments_folde
 	proteins_file = os.path.join(alignments_folder,re.sub('\\|','__',qprot)+'.fasta')
 	alignment_file = os.path.join(alignments_folder,re.sub('\\|','__',qprot)+'_aln.fasta')
 	if (os.path.exists(alignment_file)) and (os.path.getsize(alignment_file) > 0):
-		message = f'--> MSA for {qprot} orthologs found...'
+		message = f'--> MSA for {qprot} homologs found...'
 		print(message)
 		write_to_log(log_file,message)
 		return(alignment_file)
 	else:
-		message = f'--> Creating MSA for {qprot} orthologs...'
+		message = f'--> Creating MSA for {qprot} homologs...'
 		print(message)
 		write_to_log(log_file,message)
 		to_fasta = []
@@ -698,14 +698,14 @@ def compareByDP(cluster_i,cluster_j,id_dict, gap, mismatch):
 			for j in range(1,nB+1):
 				AGap = dpMat[i-1,j][0]-gap
 				BGap = dpMat[i,j-1][0]-gap
-				#orthologs?
+				#homologs?
 				if ((dictA[i][0],dictB[j][0]) in id_dict.keys()) and (dictA[i][3] == dictB[j][3]):
 					AB = dpMat[i-1,j-1][0]+id_dict[dictA[i][0],dictB[j][0]]
 				elif (dictA[i][0],dictB[j][0]) in id_dict.keys():
 					#wrong orientation
 					AB = dpMat[i-1,j-1][0]+id_dict[dictA[i][0],dictB[j][0]]/2
 				else:
-					#not orthologs, prefere gap inserition instead of aligning different genes --> -20 
+					#not homologs, prefere gap inserition instead of aligning different genes --> -20 
 					AB = dpMat[i-1,j-1][0] - mismatch
 				if (AB >= AGap) and (AB >= BGap):
 					direction = "Match"
@@ -825,7 +825,7 @@ def compareByDP_cluster_profiles(list_cluster_i,list_cluster_j,id_dict,gap,misma
 		for j in range(1,nB+1):
 			AGap = dpMat[i-1,j][0]-gap
 			BGap = dpMat[i,j-1][0]-gap
-			#orthologs? Sum of scores, nseqsA, nseqsB
+			#homologs? Sum of scores, nseqsA, nseqsB
 			AB = dpMat[i-1,j-1][0]
 			sum_of_scores = 0
 			comparisons = 0
@@ -840,7 +840,7 @@ def compareByDP_cluster_profiles(list_cluster_i,list_cluster_j,id_dict,gap,misma
 					elif (dictA[i][sA][0] == '----' ) and (dictB[j][sB] == '----'):
 						sum_of_scores += -gap
 					else:
-						#not orthologs, prefere gap inserition instead of aligning different genes --> -20 
+						#not homologs, prefere gap inserition instead of aligning different genes --> -20 
 						sum_of_scores += -mismatch
 			AB += sum_of_scores/comparisons
 			if (AB >= AGap) and (AB >= BGap):
@@ -1444,7 +1444,7 @@ if __name__ == "__main__":
 	id_dict = get_alien_proteins_id_scores(cluster_dict, proteins, alignments_folder,evalue,id_dict)
 	#generate reciprocal ids in id_dict
 	id_dict.update({(k[1],k[0]):v for k,v in id_dict.items()})
-	#id_dict contains the %ID off all ortholog comparisons to use as score in DP
+	#id_dict contains the %ID off all homologs comparisons to use as score in DP
 	#align and clustering by DP
 	#put all clusters with reference orientation
 	reoriented_cluster_dict = orient_clusters(ref_cluster,cluster_dict,id_dict,gap,mismatch)
